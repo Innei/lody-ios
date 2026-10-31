@@ -160,6 +160,49 @@ final class MacSidebarChromeTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(window.frame.height, 720)
   }
 
+  func testCollapsingAndExpandingSidebarPreservesTheWindowFrame() async throws {
+    try await checkSidebarWindowFrame(sessionId: "s-mac")
+  }
+
+  func testNewDraftSidebarAnimationAlsoPreservesTheWindowFrame() async throws {
+    try await checkSidebarWindowFrame(sessionId: nil)
+  }
+
+  private func checkSidebarWindowFrame(sessionId: String?) async throws {
+    let controller = MainWindowController(environment: MacFixtures.environment, sessionId: sessionId)
+    let window = try XCTUnwrap(controller.window)
+    defer { window.close() }
+    let workspace = try XCTUnwrap(controller.workspace)
+    let side = try XCTUnwrap(workspace.splitViewItems.first)
+    for width: CGFloat in [760, 1100, 1800] {
+      window.setContentSize(NSSize(width: width, height: 720))
+      window.layoutIfNeeded()
+      let before = window.frame
+      XCTAssertEqual(before.width, width, accuracy: 1, "the reading column must not limit resizing the window")
+      let resizing = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { _ in
+        MainActor.assumeIsolated {
+          XCTAssertEqual(window.frame.width, before.width, accuracy: 1, "window width stays fixed throughout the animation")
+          XCTAssertEqual(window.frame.height, before.height, accuracy: 1, "window height stays fixed throughout the animation")
+        }
+      }
+      defer { NotificationCenter.default.removeObserver(resizing) }
+      for collapsed in [true, false] {
+        await withCheckedContinuation { continuation in
+          NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            side.animator().isCollapsed = collapsed
+          }, completionHandler: { continuation.resume() })
+        }
+        window.layoutIfNeeded()
+        XCTAssertEqual(window.frame.width, before.width, accuracy: 1)
+        XCTAssertEqual(window.frame.height, before.height, accuracy: 1)
+        XCTAssertEqual(window.frame.minX, before.minX, accuracy: 1)
+        XCTAssertEqual(window.frame.minY, before.minY, accuracy: 1)
+        XCTAssertEqual(side.isCollapsed, collapsed)
+      }
+    }
+  }
+
   func testFilteringAndCollapsingRefreshTheToolbarNavigation() throws {
     let controller = MainWindowController(environment: MacFixtures.environment, sessionId: "s-mac")
     let window = try XCTUnwrap(controller.window)

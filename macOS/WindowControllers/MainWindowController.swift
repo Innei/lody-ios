@@ -142,7 +142,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.toggleSidebar, .lodySessionNavigation, .sidebarTrackingSeparator, .flexibleSpace]
+    [.lodySessionNavigation, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {

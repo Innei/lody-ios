@@ -1639,13 +1639,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fill window width"
+            "value": "Wider conversation column"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "对话铺满窗口宽度"
+            "value": "加宽对话阅读栏"
           }
         }
       }
@@ -1656,13 +1656,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Let conversations use the whole window instead of a centred reading column."
+            "value": "Give conversations more room while keeping a maximum width and centered alignment."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让对话占满整个窗口，而不是居中的阅读栏。"
+            "value": "增加对话的阅读空间，同时保留最大宽度并居中显示。"
           }
         }
       }

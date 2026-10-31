@@ -108,6 +108,11 @@ final class MacComposerView: NSView, MacFileDropTarget {
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 12
+    // The host chooses the reading width; only the tray hugs its own context labels.
+    for flexible in [controls, body, stack, noticeRow] {
+      flexible.setHuggingPriority(.init(1), for: .horizontal)
+      flexible.setContentHuggingPriority(.init(1), for: .horizontal)
+    }
     for view in [fill, body, stack] { view.translatesAutoresizingMaskIntoConstraints = false }
     addSubview(stack)
     fill.addSubview(body)

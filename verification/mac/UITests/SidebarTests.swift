@@ -7,6 +7,62 @@ final class SidebarTests: LodyMacUITestCase {
     outline.cells.allElementsBoundByIndex.map(\.label).filter { sessionTitles.contains($0) }
   }
 
+  func testSidebarToggleAnimationKeepsWindowFrameAndWideChatCentered() {
+    for appearance in ["light", "dark"] {
+      open("sidebar", appearance)
+      let outline = scene.outlines["sidebar-sessions"]
+      let toggle = scene.toolbars.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar'")).firstMatch
+      XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+      XCTAssertLessThan(abs(outline.frame.maxX - toggle.frame.maxX), 40, "the toggle sits at the sidebar's trailing edge")
+      let before = scene.frame
+      toggle.click()
+      eventually("sidebar collapses") { !scene.buttons["sidebar-new-session"].isHittable }
+      assertFrame(before, scene.frame)
+      attach("sidebar-hidden-\(appearance)", scene)
+      XCTAssertTrue(toggle.isHittable, "the native toggle remains available while the sidebar is hidden")
+      toggle.click()
+      eventually("sidebar expands") { scene.buttons["sidebar-new-session"].isHittable }
+      assertFrame(before, scene.frame)
+      attach("sidebar-restored-\(appearance)", scene)
+
+      // Move into the guest's usable screen before resizing the actual native window.
+      let titlebar = scene.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.025))
+      titlebar.click(forDuration: 0.25, thenDragTo: titlebar.withOffset(CGVector(dx: 40 - scene.frame.minX, dy: 0)))
+      eventually("the native window moves into the usable screen") { scene.frame.minX < 100 }
+      resize(to: 1460)
+      eventually("the window can grow beyond the reading column") { scene.frame.width > 1400 }
+      let prose = scene.staticTexts["transcript-prose"].firstMatch
+      XCTAssertTrue(prose.exists)
+      XCTAssertLessThanOrEqual(prose.frame.width, 780)
+      XCTAssertEqual(prose.frame.midX, (outline.frame.maxX + scene.frame.maxX) / 2, accuracy: 10)
+      attach("sidebar-wide-\(appearance)", scene)
+      let wide = scene.frame
+      toggle.click()
+      eventually("wide sidebar collapses") { !scene.buttons["sidebar-new-session"].isHittable }
+      assertFrame(wide, scene.frame)
+      XCTAssertEqual(prose.frame.midX, scene.frame.midX, accuracy: 10)
+      attach("sidebar-wide-hidden-\(appearance)", scene)
+      toggle.click()
+      eventually("wide sidebar expands") { scene.buttons["sidebar-new-session"].isHittable }
+      assertFrame(wide, scene.frame)
+      resize(to: 800)
+      eventually("the window can shrink with both panes visible") { scene.frame.width < 850 }
+      attach("sidebar-narrow-\(appearance)", scene)
+    }
+  }
+
+  private func resize(to width: CGFloat) {
+    let edge = scene.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(CGVector(dx: -1, dy: 0))
+    edge.click(forDuration: 0.25, thenDragTo: edge.withOffset(CGVector(dx: width - scene.frame.width, dy: 0)))
+  }
+
+  private func assertFrame(_ before: CGRect, _ after: CGRect) {
+    XCTAssertEqual(before.minX, after.minX, accuracy: 1)
+    XCTAssertEqual(before.minY, after.minY, accuracy: 1)
+    XCTAssertEqual(before.width, after.width, accuracy: 1)
+    XCTAssertEqual(before.height, after.height, accuracy: 1)
+  }
+
   func testMachineProjectsAndCompactSessionsInBothAppearances() {
     for appearance in ["light", "dark"] {
       open("sidebar", appearance)

@@ -69,7 +69,8 @@ final class MacNewSessionController: NSViewController {
       composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
       composer.view.centerYAnchor.constraint(equalTo: root.centerYAnchor),
       composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: 680),
-      composer.view.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -48).withPriority(.defaultHigh),
+      composer.view.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
+      composer.view.widthAnchor.constraint(equalToConstant: 680).withPriority(.init(249)),
       status.topAnchor.constraint(equalTo: composer.view.bottomAnchor, constant: 12),
       status.centerXAnchor.constraint(equalTo: root.centerXAnchor),
     ])

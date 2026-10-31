@@ -8,6 +8,7 @@ struct MacReading: Equatable, Sendable {
 
   var textSize: Double
   var fillWidth: Bool
+  var columnWidth: CGFloat { fillWidth ? 1000 : 780 }
 
   init(textSize: Double, fillWidth: Bool) {
     self.textSize = min(max(textSize, Self.textSizes.lowerBound), Self.textSizes.upperBound)

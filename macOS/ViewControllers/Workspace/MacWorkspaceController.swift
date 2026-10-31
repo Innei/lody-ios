@@ -39,6 +39,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     side.maximumThickness = 380
     side.preferredThicknessFraction = 320 / 1100
     side.canCollapse = true
+    side.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
     side.addTopAlignedAccessoryViewController(sidebar.topAccessory)
     side.addBottomAlignedAccessoryViewController(sidebar.bottomAccessory)
     addSplitViewItem(side)
