@@ -53,7 +53,7 @@ final class MacNewSessionController: NSViewController {
   override func loadView() {
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 600))
     let heading = NSTextField(labelWithString: String(localized: "mac.newSession.title", bundle: .lodyMac))
-    heading.font = .systemFont(ofSize: 22, weight: .semibold)
+    heading.font = .systemFont(ofSize: 22, weight: .medium)
     heading.translatesAutoresizingMaskIntoConstraints = false
     addChild(composer)
     composer.view.translatesAutoresizingMaskIntoConstraints = false
@@ -64,11 +64,11 @@ final class MacNewSessionController: NSViewController {
     root.addSubview(composer.view)
     root.addSubview(status)
     NSLayoutConstraint.activate([
-      heading.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-      heading.bottomAnchor.constraint(equalTo: composer.view.topAnchor, constant: -20),
+      heading.leadingAnchor.constraint(equalTo: composer.view.leadingAnchor),
+      heading.bottomAnchor.constraint(equalTo: composer.view.topAnchor, constant: -24),
       composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-      composer.view.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 20),
-      composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: 720),
+      composer.view.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+      composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: 680),
       composer.view.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -48).withPriority(.defaultHigh),
       status.topAnchor.constraint(equalTo: composer.view.bottomAnchor, constant: 12),
       status.centerXAnchor.constraint(equalTo: root.centerXAnchor),

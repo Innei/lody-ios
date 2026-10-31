@@ -70,6 +70,19 @@ final class MacComposerLayoutTests: XCTestCase {
     XCTAssertEqual(events.log, ["send", "reply"])
   }
 
+  func testNewSessionKeepsProjectChoicesOutsideTheWritingSurface() throws {
+    let composer = MacComposerView(frame: NSRect(x: 0, y: 0, width: 680, height: 220))
+    var model = MacComposerModel(mode: .newSession)
+    model.form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p", machineId: "m", name: "lody-ios")])
+    model.form.open(projectId: nil, context: nil)
+    composer.render(model, reply: ("", "", ""))
+    let surface = try XCTUnwrap(composer.descendants(MacFillView.self).first)
+    XCTAssertFalse(composer.project.isDescendant(of: surface), "project choices describe the draft context outside the editor")
+    XCTAssertTrue(composer.input.isDescendant(of: surface))
+    composer.layoutSubtreeIfNeeded()
+    XCTAssertGreaterThanOrEqual(composer.input.enclosingScrollView?.frame.height ?? 0, 80, "a new task starts with room to write several lines")
+  }
+
   func testABlockedNewSessionKeepsItsChipsAndNoticeInsideTheComposer() throws {
     var model = MacComposerModel(mode: .newSession)
     let handbook = CreateProject(id: "p3", machineId: "", name: "handbook")
