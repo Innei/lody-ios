@@ -76,6 +76,7 @@ enum MacFixtures {
       windowIdentifier: "catalog-scene",
       titlePrefix: "Catalog · ",
       windowClass: MacOffscreen.windowClass,
+      account: { AuthAccount(user: AuthUser(id: "u-fixture", name: "Innei", email: "fixture@example.invalid", image: nil), workspaces: listState.workspaces) },
       showSettings: { DebugSceneCoordinator.shared.showSettings($0) }
     )
   }

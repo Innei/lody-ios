@@ -36,16 +36,16 @@ export async function sidebar(session: Session) {
     expect(
       order(
         [
-          'session-s-plan',
-          'session-s-landing',
+          'session-s-mac',
           'session-s-review',
           'session-s-tabs',
+          'session-s-plan',
+          'session-s-landing',
           'session-s-deploy',
-          'session-s-mac',
         ],
         ids,
       ),
-      `pinned and active precede the working shelf: ${ids.join(', ')}`,
+      `sessions stay together inside their machine and project: ${ids.join(', ')}`,
     );
     expect(
       find(
@@ -57,11 +57,9 @@ export async function sidebar(session: Session) {
     expect(
       find(
         ready,
-        (node) =>
-          node.identifier === 'sidebar-search' &&
-          node.class === 'NSSearchField',
+        (node) => node.identifier === 'sidebar-search-action' && node.enabled,
       ).length === 1,
-      'search uses the native AppKit search field',
+      'search action is available',
     );
     await capture(session, `sidebar-${appearance}`);
   }

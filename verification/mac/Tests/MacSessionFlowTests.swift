@@ -207,11 +207,11 @@ final class MacWorkspaceChromeTests: XCTestCase {
       newSession: { MacPlaceholderController(text: "") }, requiresAccount: false
     ))
     defer { controller.window?.close() }
-    let picker = try XCTUnwrap(controller.window?.toolbar?.items.first { $0.itemIdentifier == .lodyWorkspace }?.view as? NSPopUpButton)
+    let picker = try XCTUnwrap(controller.workspace?.sidebar.bottomAccessory.view.descendants(NSPopUpButton.self).first)
     XCTAssertFalse(picker.isHidden)
-    XCTAssertEqual(picker.itemTitles, ["Innei Lab", "Side Projects"])
-    picker.selectItem(at: 1)
-    _ = picker.sendAction(picker.action, to: picker.target)
+    let menu = try XCTUnwrap(picker.menu)
+    let index = try XCTUnwrap(menu.items.firstIndex { ($0.representedObject as? String) == "w-side" })
+    menu.performActionForItem(at: index)
     XCTAssertEqual(selected, ["w-side"])
   }
 }

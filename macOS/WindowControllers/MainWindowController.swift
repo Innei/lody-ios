@@ -10,9 +10,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   private var observer: NSObjectProtocol?
   private var signedIn: Bool?
   private var onboarding: MacOnboardingChrome.Saved?
-  private let workspacePicker = NSPopUpButton()
   private let navigation = NSSegmentedControl()
-  private var workspaceSignature: [String] = []
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
     self.environment = environment
@@ -29,12 +27,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     window.isReleasedWhenClosed = false
     window.identifier = NSUserInterfaceItemIdentifier(environment.windowIdentifier)
     super.init(window: window)
-    workspacePicker.isBordered = false
-    workspacePicker.controlSize = .small
-    workspacePicker.font = .systemFont(ofSize: 12, weight: .semibold)
-    workspacePicker.target = self
-    workspacePicker.action = #selector(workspaceChanged)
-    workspacePicker.setAccessibilityIdentifier("sidebar-workspace")
     navigation.segmentCount = 2
     navigation.trackingMode = .momentary
     navigation.setImage(NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil), forSegment: 0)
@@ -110,7 +102,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
       guard let self else { return }
       MainWindowController(environment: self.environment, sessionId: id).showWindow(nil)
     }
-    workspace.sidebar.onWorkspaceChange = { [weak self] state in self?.updateWorkspace(state) }
     workspace.sidebar.onVisibleSessionsChange = { [weak self] in self?.updateNavigation() }
     self.workspace = workspace
     let frame = window?.frame
@@ -122,7 +113,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
       window?.setFrame(frame, display: false)
     }
     window?.title = environment.titlePrefix + "Lody"
-    updateWorkspace(environment.sessions.read())
     updateNavigation()
     MacTabCoordinator.shared.add(workspace)
     if window?.isKeyWindow == true { MacTabCoordinator.shared.select(workspace) }
@@ -152,7 +142,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.toggleSidebar, .lodyWorkspace, .lodySessionNavigation, .sidebarTrackingSeparator, .flexibleSpace]
+    [.toggleSidebar, .lodySessionNavigation, .sidebarTrackingSeparator, .flexibleSpace]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -162,29 +152,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
     let item = NSToolbarItem(itemIdentifier: itemIdentifier)
     switch itemIdentifier {
-    case .lodyWorkspace:
-      item.label = String(localized: "mac.settings.page.workspace", bundle: .lodyMac)
-      item.view = workspacePicker
-      return item
     case .lodySessionNavigation:
       item.label = String(localized: "mac.menu.session", bundle: .lodyMac)
       item.view = navigation
       return item
     default: return nil
     }
-  }
-
-  private func updateWorkspace(_ state: SessionListState) {
-    let signature = state.workspaces.map { $0.id + "/" + $0.name } + [state.workspaceId]
-    guard workspaceSignature != signature else { return }
-    workspaceSignature = signature
-    workspacePicker.removeAllItems()
-    for workspace in state.workspaces {
-      workspacePicker.addItem(withTitle: workspace.name)
-      workspacePicker.lastItem?.representedObject = workspace.id
-    }
-    if state.workspaces.isEmpty { workspacePicker.addItem(withTitle: "Lody") }
-    if let index = state.workspaces.firstIndex(where: { $0.id == state.workspaceId }) { workspacePicker.selectItem(at: index) }
   }
 
   private func updateNavigation() {
@@ -195,12 +168,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   @objc private func navigateSession(_ sender: NSSegmentedControl) {
     if sender.selectedSegment == 0 { workspace?.selectPreviousSession(sender) }
     if sender.selectedSegment == 1 { workspace?.selectNextSession(sender) }
-  }
-
-  @objc private func workspaceChanged() {
-    guard let id = workspacePicker.selectedItem?.representedObject as? String,
-          id != environment.sessions.read().workspaceId else { return }
-    environment.sessions.selectWorkspace(id)
   }
 
   override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
@@ -231,6 +198,5 @@ extension MainWindowController: NSMenuItemValidation {
 }
 
 extension NSToolbarItem.Identifier {
-  static let lodyWorkspace = NSToolbarItem.Identifier("lody.workspace")
   static let lodySessionNavigation = NSToolbarItem.Identifier("lody.sessionNavigation")
 }

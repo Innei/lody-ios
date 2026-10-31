@@ -18,22 +18,24 @@ final class MacSidebarTests: XCTestCase {
     return SessionListState(userId: "u", workspaceId: "w", catalog: catalog)
   }
 
-  func testShelvesKeepPinnedFirstAndSeparateWorkingFromActiveAndSettled() {
+  func testProjectsKeepTheirSessionsTogetherAndPinnedFirst() {
     let model = MacSidebarModel(state: state())
-    XCTAssertEqual(model.pinned.map(\.id), ["pin"])
-    XCTAssertEqual(model.groups.first { $0.id == "active" }?.rows.map(\.id), ["site", "old"])
-    XCTAssertEqual(model.groups.first { $0.id == "working" }?.rows.map(\.id), ["new"])
-    XCTAssertEqual(model.groups.first { $0.id == "settled" }?.rows.map(\.id), ["gone"])
+    XCTAssertEqual(model.groups.map(\.title), ["lody-ios", "website"])
+    XCTAssertEqual(model.groups[0].rows.map(\.id), ["new", "old"])
+    XCTAssertEqual(model.groups[1].rows.map(\.id), ["pin", "site"])
     XCTAssertEqual(model.needsApproval, 1)
-    XCTAssertFalse(model.groups.flatMap(\.rows).contains { $0.id == "child" })
+    XCTAssertFalse(model.groups.flatMap(\.rows).contains { ["child", "gone"].contains($0.id) })
   }
 
-  func testAWorkingSessionThatNeedsAnAnswerStaysInActive() {
+  func testTheSameRepositoryOnTwoMachinesDoesNotMixItsSessions() {
     var current = state()
-    current.catalog.sessions[2].status = "running"
+    current.catalog.sessions[0].machineId = "studio"
+    current.catalog.sessions[1].machineId = "mini"
     let model = MacSidebarModel(state: current)
-    XCTAssertEqual(model.groups.first { $0.id == "active" }?.rows.first?.id, "site")
-    XCTAssertEqual(model.groups.first { $0.id == "working" }?.rows.map(\.id), ["new"])
+    let projects = model.groups.filter { $0.title == "lody-ios" }
+    XCTAssertEqual(projects.count, 2)
+    XCTAssertEqual(Set(projects.flatMap(\.rows).map(\.id)), ["new", "old"])
+    XCTAssertTrue(projects.allSatisfy { $0.rows.count == 1 })
   }
 
   func testSearchFindsBranchContextAndExcludesUnrelatedSessions() {
@@ -85,10 +87,32 @@ final class MacSidebarChromeTests: XCTestCase {
     XCTAssertEqual(sidebar.visibleIds, ["s-landing", "s-deploy"])
   }
 
+  func testEmptyProjectResultsKeepTheFilterAvailableToLeaveTheScope() throws {
+    var state = MacFixtures.listState
+    state.catalog.projects.append(SessionProject(id: "empty", name: "Empty project"))
+    let sidebar = SidebarViewController(source: .fixture(state))
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentViewController = sidebar
+    window.layoutIfNeeded()
+    let filter = try XCTUnwrap(sidebar.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-filter" })
+    let menu = try XCTUnwrap(filter.menu)
+    menu.performActionForItem(at: try XCTUnwrap(menu.items.firstIndex { ($0.representedObject as? String) == "empty" }))
+    XCTAssertTrue(sidebar.visibleIds.isEmpty)
+    window.layoutIfNeeded()
+    XCTAssertNotNil(sidebar.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-filter" })
+    let all = try XCTUnwrap(filter.menu?.items.firstIndex { ($0.representedObject as? String) == "" })
+    filter.menu?.performActionForItem(at: all)
+    XCTAssertEqual(sidebar.visibleIds.count, 6)
+  }
+
   func testOpeningAWorkspacePreservesTheInitialWindowSize() throws {
     let controller = MainWindowController(environment: MacFixtures.environment, sessionId: "s-mac")
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
+    window.layoutIfNeeded()
+    XCTAssertEqual(controller.workspace?.sidebar.view.frame.width ?? 0, 320, accuracy: 1)
     XCTAssertGreaterThanOrEqual(window.frame.width, 1100)
     XCTAssertGreaterThanOrEqual(window.frame.height, 720)
   }
@@ -102,17 +126,17 @@ final class MacSidebarChromeTests: XCTestCase {
     let filter = try XCTUnwrap(window.contentView?.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-filter" })
     let menu = try XCTUnwrap(filter.menu)
     let project = try XCTUnwrap(menu.items.firstIndex { ($0.representedObject as? String) == "p-web" })
-    XCTAssertFalse(navigation.isEnabled(forSegment: 1))
+    XCTAssertTrue(navigation.isEnabled(forSegment: 1))
     menu.performActionForItem(at: project)
     XCTAssertTrue(navigation.isEnabled(forSegment: 1), "a filtered-out selection can navigate to the first result")
     let all = try XCTUnwrap(filter.menu?.items.firstIndex { ($0.representedObject as? String) == "" })
     filter.menu?.performActionForItem(at: all)
-    controller.workspace?.open("s-deploy")
+    controller.workspace?.open("s-review")
     XCTAssertTrue(navigation.isEnabled(forSegment: 1))
     let outline = try XCTUnwrap(controller.workspace?.sidebar.outlineView)
-    let working = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "working" })
+    let working = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.title == "lody-ios" })
     outline.collapseItem(working)
-    XCTAssertFalse(navigation.isEnabled(forSegment: 1), "navigation follows the collapsed shelf")
+    XCTAssertTrue(navigation.isEnabled(forSegment: 1), "a hidden selection can navigate to another visible project")
   }
 }
 
@@ -126,11 +150,11 @@ final class MacSidebarStatusTests: XCTestCase {
   }
 
   func testUnreadErrorsAndIdleSessionsDoNotClaimCompletion() throws {
-    let failed = try cell("error").descendants(NSTextField.self).map(\.stringValue)
+    let failed = [try cell("error").accessibilityHelp() ?? ""]
     XCTAssertTrue(failed.contains("Failed"))
     XCTAssertFalse(failed.contains("Done"))
-    XCTAssertFalse(try cell("idle").descendants(NSTextField.self).map(\.stringValue).contains("Done"))
-    XCTAssertTrue(try cell("completed").descendants(NSTextField.self).map(\.stringValue).contains("Done"))
+    XCTAssertFalse([try cell("idle").accessibilityHelp() ?? ""].contains("Done"))
+    XCTAssertTrue([try cell("completed").accessibilityHelp() ?? ""].contains("Done"))
   }
 }
 
@@ -231,48 +255,54 @@ final class MacWindowTabTests: XCTestCase {
 
 @MainActor
 final class MacSidebarLayoutTests: XCTestCase {
-  func testShelfHeadersKeepTheirLabelsCenteredAndShorterThanSessionRows() throws {
+  func testProjectAndSessionTextShareARailWithoutExtraIndentation() throws {
     let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 800), styleMask: [.titled], backing: .buffered, defer: true)
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 800), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
     window.contentViewController = sidebar
     window.layoutIfNeeded()
-    let outline = try XCTUnwrap(sidebar.view.descendants(NSOutlineView.self).first)
-    outline.layoutSubtreeIfNeeded()
-    var headers = 0
-    for row in 0..<outline.numberOfRows where outline.isExpandable(outline.item(atRow: row)) {
+    let outline = sidebar.outlineView
+    let projectRow = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.title == "lody-ios" })
+    let sessionRow = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.id == "s-mac" })
+    func title(_ row: Int, _ text: String) throws -> NSTextField {
       let cell = try XCTUnwrap(outline.view(atColumn: 0, row: row, makeIfNecessary: true))
-      cell.superview?.layoutSubtreeIfNeeded()
-      let label = try XCTUnwrap(([cell] + cell.descendants(NSTextField.self)).compactMap { $0 as? NSTextField }.first { !$0.stringValue.isEmpty })
-      let labelMid = label.convert(label.bounds, to: outline).midY
-      let rect = outline.rect(ofRow: row)
-      XCTAssertEqual(label.frame.height, label.intrinsicContentSize.height, accuracy: 1, "\(label.stringValue) keeps its text height")
-      XCTAssertEqual(labelMid, rect.midY, accuracy: 2, "\(label.stringValue) is centred in its row")
-      if outline.isItemExpanded(outline.item(atRow: row)) {
-        XCTAssertLessThan(rect.height, outline.rect(ofRow: row + 1).height, "\(label.stringValue) row is shorter than a session row")
-      }
-      headers += 1
+      cell.layoutSubtreeIfNeeded()
+      return try XCTUnwrap(cell.descendants(NSTextField.self).first { $0.stringValue == text })
     }
-    XCTAssertEqual(headers, 2)
+    let folder = try title(projectRow, "lody-ios")
+    let session = try title(sessionRow, "Build the AppKit sidebar")
+    XCTAssertEqual(folder.convert(folder.bounds, to: outline).minX, session.convert(session.bounds, to: outline).minX, accuracy: 1)
+    XCTAssertLessThanOrEqual(outline.rect(ofRow: sessionRow).height, 34)
   }
 }
 
 @MainActor
 final class MacSidebarExpansionTests: XCTestCase {
-  func testCollapsedGroupsStayCollapsedAcrossReloads() throws {
+  func testCollapsedProjectsStayCollapsedAcrossReloads() throws {
     let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
     _ = sidebar.view
-    let outline = try XCTUnwrap(sidebar.view.descendants(NSOutlineView.self).first)
-    let group = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "working" })
-    outline.collapseItem(group)
+    let outline = sidebar.outlineView
+    func project() throws -> SidebarViewController.Node {
+      try XCTUnwrap((0..<outline.numberOfRows).compactMap { outline.item(atRow: $0) as? SidebarViewController.Node }.first { $0.title == "lody-ios" })
+    }
+    outline.collapseItem(try project())
     sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-    let reloaded = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "working" })
-    XCTAssertFalse(outline.isItemExpanded(reloaded))
-    let other = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "settled" })
-    XCTAssertFalse(outline.isItemExpanded(other))
-    outline.expandItem(other)
-    sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-    let expanded = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "settled" })
-    XCTAssertTrue(outline.isItemExpanded(expanded))
+    XCTAssertFalse(outline.isItemExpanded(try project()))
+    XCTAssertFalse(sidebar.visibleIds.contains("s-mac"))
+    outline.expandItem(try project())
+    XCTAssertTrue(sidebar.visibleIds.contains("s-mac"))
+  }
+
+  func testArchiveButtonShowsOnlyArchivedSessionsAndCanReturn() throws {
+    let workspace = MacWorkspaceController(environment: MacFixtures.environment)
+    _ = workspace.view
+    let button = try XCTUnwrap(workspace.sidebar.bottomAccessory.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-archive" })
+    button.performClick(nil)
+    XCTAssertEqual(workspace.sidebar.visibleIds, ["s-old"])
+    button.performClick(nil)
+    XCTAssertFalse(workspace.sidebar.visibleIds.contains("s-old"))
+    XCTAssertTrue(workspace.sidebar.visibleIds.contains("s-mac"))
   }
 }
 

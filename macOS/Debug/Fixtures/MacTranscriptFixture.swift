@@ -65,11 +65,11 @@ final class MacTranscriptFixture {
   private var json: String {
     if shell {
       return """
-      [{"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Keep T3 Code's thread structure and make the sidebar feel native on macOS."}]},
+      [{"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Group sessions by project and keep the native Mac controls."}]},
        {"id":"a1","role":"assistant","status":"completed","finished":true,"items":[
         {"itemId":"read","type":"tool_call","kind":"read","title":"Read MainWindowController.swift","status":"completed"},
         {"itemId":"search","type":"tool_call","kind":"search","title":"Inspect native sidebar controls","status":"completed"},
-        {"itemId":"reply","type":"text","text":"The sidebar now uses native AppKit controls. Pinned sessions stay above active work, while running sessions have their own **Working** section.\\n\\nSearch, project filtering, and the session menu stay within the native Mac window. I'm checking keyboard navigation next."}]}\(followUps)]
+        {"itemId":"reply","type":"text","text":"Sessions now stay together under each **machine and project**. Compact rows keep titles aligned with their project, and a neutral selection marks the current conversation.\\n\\nSearch, project filtering, and the session menu stay within the native Mac window. Archived sessions are available from the footer."}]}\(followUps)]
       """
     }
     let permission = answered == nil

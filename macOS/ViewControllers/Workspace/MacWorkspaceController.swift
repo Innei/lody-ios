@@ -8,6 +8,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private let detail = MacDetailController()
   private var pane: MacSessionPane?
   private var streaming = false
+  private var sizedSidebar = false
   private var observers: [NSObjectProtocol] = []
   private(set) var sessionId: String?
   private(set) lazy var actions = MacSessionActions(source: environment.sessions, prompts: .live { [weak self] in self?.view.window })
@@ -21,7 +22,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   init(environment: MacEnvironment) {
     self.environment = environment
-    sidebar = SidebarViewController(source: environment.sessions)
+    sidebar = SidebarViewController(source: environment.sessions, account: environment.account)
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -36,7 +37,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     let side = NSSplitViewItem(sidebarWithViewController: sidebar)
     side.minimumThickness = 280
     side.maximumThickness = 380
-    side.preferredThicknessFraction = 0.27
+    side.preferredThicknessFraction = 320 / 1100
     side.canCollapse = true
     side.addTopAlignedAccessoryViewController(sidebar.topAccessory)
     side.addBottomAlignedAccessoryViewController(sidebar.bottomAccessory)
@@ -62,6 +63,13 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     sidebar.onShowSettings = environment.showSettings
     sidebar.actions = actions
     sidebar.onAction = { [weak self] action, id in self?.run(action, id) }
+  }
+
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    guard !sizedSidebar, view.window != nil, splitView.bounds.width >= 760 else { return }
+    sizedSidebar = true
+    splitView.setPosition(320, ofDividerAt: 0)
   }
 
   private func run(_ action: MacSessionAction, _ id: String?) {
