@@ -21,8 +21,7 @@ final class MacUserTurnView: NSView {
       bubble.topAnchor.constraint(equalTo: topAnchor),
       bubble.bottomAnchor.constraint(equalTo: bottomAnchor),
       bubble.trailingAnchor.constraint(equalTo: trailingAnchor),
-      bubble.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 80),
-      bubble.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.78),
+      bubble.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 32),
     ])
     setAccessibilityIdentifier("transcript-user")
   }

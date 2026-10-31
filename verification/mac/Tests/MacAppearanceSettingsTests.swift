@@ -72,6 +72,21 @@ final class MacReadingTests: XCTestCase {
     XCTAssertEqual(prose.convert(prose.bounds, to: view).midX, viewport.convert(viewport.bounds, to: view).midX, accuracy: 1)
   }
 
+  func testUserMessageUsesAvailableSpaceBeforeWrapping() throws {
+    let text = "Group sessions by project and keep the native Mac controls."
+    let user = MacUserTurnView(text: text)
+    user.translatesAutoresizingMaskIntoConstraints = false
+    user.widthAnchor.constraint(equalToConstant: 426).isActive = true
+    user.layoutSubtreeIfNeeded()
+    let label = try XCTUnwrap(user.descendants(NSTextField.self).first)
+    let font = try XCTUnwrap(label.font)
+    let naturalWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    XCTAssertGreaterThanOrEqual(label.frame.width, naturalWidth, "this message fits on one line when the row's usable space is not capped to a percentage")
+    let singleLine = NSTextField(labelWithString: text)
+    singleLine.font = font
+    XCTAssertLessThanOrEqual(label.frame.height, singleLine.intrinsicContentSize.height + 1)
+  }
+
   func testTextSizeReachesProseAndUserBubbles() throws {
     let (view, _) = transcript(width: 800)
     view.reading = MacReading(textSize: 16, fillWidth: false)
