@@ -72,6 +72,19 @@ final class MacReadingTests: XCTestCase {
     XCTAssertEqual(prose.convert(prose.bounds, to: view).midX, viewport.convert(viewport.bounds, to: view).midX, accuracy: 1)
   }
 
+  func testNarrowTranscriptKeepsItsGuttersWhenTheScrollbarTakesSpace() throws {
+    let (view, root) = transcript(width: 480)
+    let scroll = try XCTUnwrap(view.descendants(NSScrollView.self).first)
+    scroll.scrollerStyle = .legacy
+    scroll.tile()
+    root.layoutSubtreeIfNeeded()
+    let prose = try XCTUnwrap(view.rowViews.last)
+    let viewport = scroll.contentView
+    let frame = prose.convert(prose.bounds, to: viewport)
+    XCTAssertEqual(frame.minX - viewport.bounds.minX, 20, accuracy: 1)
+    XCTAssertEqual(viewport.bounds.maxX - frame.maxX, 20, accuracy: 1)
+  }
+
   func testUserMessageUsesAvailableSpaceBeforeWrapping() throws {
     let text = "Group sessions by project and keep the native Mac controls."
     let user = MacUserTurnView(text: text)

@@ -32,6 +32,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
+    table.horizontalInset = 20
     table.readingWidth = reading.columnWidth
     table.tableView.setAccessibilityIdentifier("transcript")
     registerForDraggedTypes([.fileURL])
