@@ -201,15 +201,17 @@ final class MacWorkspaceChromeTests: XCTestCase {
     var state = MacFixtures.listState
     state.workspaces.append(AuthWorkspace(id: "w-side", name: "Side Projects", slug: nil, image: nil))
     var selected: [String] = []
-    let sidebar = SidebarViewController(source: MacSessionsSource(
-      changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { selected.append($0) }
+    let source = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { selected.append($0) })
+    let controller = MainWindowController(environment: MacEnvironment(
+      sessions: source, pane: { MacSessionSummaryController(sessionId: $0, sessions: source) },
+      newSession: { MacPlaceholderController(text: "") }, requiresAccount: false
     ))
-    _ = sidebar.view
-    let picker = try XCTUnwrap(sidebar.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-workspace" })
+    defer { controller.window?.close() }
+    let picker = try XCTUnwrap(controller.workspace?.sidebar.bottomAccessory.view.descendants(NSPopUpButton.self).first)
     XCTAssertFalse(picker.isHidden)
-    XCTAssertEqual(picker.itemTitles, ["Innei Lab", "Side Projects"])
-    picker.selectItem(at: 1)
-    _ = picker.sendAction(picker.action, to: picker.target)
+    let menu = try XCTUnwrap(picker.menu)
+    let index = try XCTUnwrap(menu.items.firstIndex { ($0.representedObject as? String) == "w-side" })
+    menu.performActionForItem(at: index)
     XCTAssertEqual(selected, ["w-side"])
   }
 }

@@ -6,6 +6,7 @@ final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   private let host = MacHost()
   private let runtime = DataRuntime(localStore: .shared)
   private var settings: NSWindowController?
+  private var settingsModel: MacSettingsModel?
   private var debug: NSWindowController?
   #if DEBUG
   private var inbox: MacVerifyInbox?
@@ -100,7 +101,18 @@ final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func showSettings(_ sender: Any?) {
-    let controller = settings ?? SettingsWindowFactory.make(model: MacSettingsModel(services: .live))
+    openSettings(page: nil)
+  }
+
+  func showSettings(page: MacSettingsPage) {
+    openSettings(page: page)
+  }
+
+  private func openSettings(page: MacSettingsPage?) {
+    let model = settingsModel ?? MacSettingsModel(services: .live)
+    settingsModel = model
+    if let page { model.selection = page }
+    let controller = settings ?? SettingsWindowFactory.make(model: model)
     settings = controller
     controller.showWindow(nil)
   }

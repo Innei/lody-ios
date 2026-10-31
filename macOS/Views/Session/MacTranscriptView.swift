@@ -24,7 +24,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
 
   var reading = MacReading.current() {
     didSet {
-      table.readingWidth = reading.fillWidth ? nil : 780
+      table.readingWidth = reading.columnWidth
       guard reading.textSize != oldValue.textSize else { return }
       table.reloadAll()
     }
@@ -32,7 +32,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    table.readingWidth = reading.fillWidth ? nil : 780
+    table.readingWidth = reading.columnWidth
     table.tableView.setAccessibilityIdentifier("transcript")
     registerForDraggedTypes([.fileURL])
     table.historyHeader.labels = .init(

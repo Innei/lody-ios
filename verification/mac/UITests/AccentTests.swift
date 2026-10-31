@@ -28,10 +28,17 @@ final class AccentTests: LodyMacUITestCase {
         swatch(accent).click()
         eventually("the \(accent) swatch applies") { swatch(accent).isSelected && !swatch("system").isSelected }
         let workspace = app.windows.matching(NSPredicate(format: "title BEGINSWITH 'Catalog · Build'")).firstMatch
-        let dot = workspace.outlines["sidebar-sessions"].cells["Build the AppKit sidebar"].images.firstMatch
+        workspace.click()
+        let input = workspace.textViews["composer-input"]
+        if value(input).isEmpty {
+          input.click()
+          input.typeText("Draft accent preview")
+        }
+        let action = workspace.buttons["composer-send"]
+        XCTAssertTrue(action.isEnabled)
         var measured = -1.0
-        eventually("the workspace's running dot retints \(accent) (hue \(measured))") {
-          measured = hue(of: dot)
+        eventually("the primary send action retints \(accent) (hue \(measured))") {
+          measured = hue(of: action)
           return hues[accent]?.contains(measured) == true
         }
         attach("accent-\(accent)-\(appearance)")

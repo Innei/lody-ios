@@ -9,9 +9,11 @@ final class MacTranscriptFixture {
   private var changed: (@MainActor (SessionFeedState) -> Void)?
   private let earlier: String
   private let media: Bool
+  private let shell: Bool
 
-  init(history: Int = 0, media: Bool = false) {
+  init(history: Int = 0, media: Bool = false, shell: Bool = false) {
     self.media = media
+    self.shell = shell
     earlier = (0..<history).map { index in
       let role = index.isMultiple(of: 2) ? "user" : "assistant"
       return #"{"id":"h\#(index)","role":"\#(role)","status":"completed","finished":true,"items":[{"itemId":"t","type":"text","text":"Earlier turn \#(index)"}]},"#
@@ -61,6 +63,15 @@ final class MacTranscriptFixture {
   }
 
   private var json: String {
+    if shell {
+      return """
+      [{"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Group sessions by project and keep the native Mac controls."}]},
+       {"id":"a1","role":"assistant","status":"completed","finished":true,"items":[
+        {"itemId":"read","type":"tool_call","kind":"read","title":"Read MainWindowController.swift","status":"completed"},
+        {"itemId":"search","type":"tool_call","kind":"search","title":"Inspect native sidebar controls","status":"completed"},
+        {"itemId":"reply","type":"text","text":"Sessions now stay together under each **machine and project**. Compact rows keep titles aligned with their project, and a neutral selection marks the current conversation.\\n\\nSearch, project filtering, and the session menu stay within the native Mac window. Archived sessions are available from the footer."}]}\(followUps)]
+      """
+    }
     let permission = answered == nil
       ? #","permission":{"pending":true,"requestId":"r-edit","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}"#
       : #","status":"completed""#

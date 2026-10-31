@@ -10,6 +10,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   private var observer: NSObjectProtocol?
   private var signedIn: Bool?
   private var onboarding: MacOnboardingChrome.Saved?
+  private let navigation = NSSegmentedControl()
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
     self.environment = environment
@@ -26,6 +27,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     window.isReleasedWhenClosed = false
     window.identifier = NSUserInterfaceItemIdentifier(environment.windowIdentifier)
     super.init(window: window)
+    navigation.segmentCount = 2
+    navigation.trackingMode = .momentary
+    navigation.setImage(NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil), forSegment: 0)
+    navigation.setImage(NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil), forSegment: 1)
+    navigation.target = self
+    navigation.action = #selector(navigateSession(_:))
+    navigation.setAccessibilityIdentifier("session-navigation")
     window.delegate = self
     let toolbar = NSToolbar(identifier: "lody.main")
     toolbar.delegate = self
@@ -83,18 +91,29 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     workspace.onTitle = { [weak self] title, subtitle in
       self?.window?.title = prefix + title
       self?.window?.subtitle = subtitle
+      self?.updateNavigation()
     }
     workspace.onBadge = { [weak self] badge in
       self?.window?.tab.accessoryView = badge.map(MacTabBadgeView.init)
     }
     workspace.onNewSession = { [weak self] in self?.workspace?.open(nil) }
+    workspace.sidebar.onOpenTab = { [weak self] id in self?.addTab(sessionId: id) }
+    workspace.sidebar.onOpenWindow = { [weak self] id in
+      guard let self else { return }
+      MainWindowController(environment: self.environment, sessionId: id).showWindow(nil)
+    }
+    workspace.sidebar.onVisibleSessionsChange = { [weak self] in self?.updateNavigation() }
     self.workspace = workspace
+    let frame = window?.frame
     window?.contentViewController = workspace
     if let window, onboarding != nil || window.titlebarAppearsTransparent {
       MacOnboardingChrome.leave(window, restoring: onboarding)
       onboarding = nil
+    } else if let frame {
+      window?.setFrame(frame, display: false)
     }
     window?.title = environment.titlePrefix + "Lody"
+    updateNavigation()
     MacTabCoordinator.shared.add(workspace)
     if window?.isKeyWindow == true { MacTabCoordinator.shared.select(workspace) }
   }
@@ -123,7 +142,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .lodyNewSession]
+    [.lodySessionNavigation, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -131,16 +150,25 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-    guard itemIdentifier == .lodyNewSession else { return nil }
     let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-    item.label = String(localized: "mac.sidebar.newSession", bundle: .lodyMac)
-    item.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: item.label)
-    item.target = self
-    item.action = #selector(newSessionPressed)
-    return item
+    switch itemIdentifier {
+    case .lodySessionNavigation:
+      item.label = String(localized: "mac.menu.session", bundle: .lodyMac)
+      item.view = navigation
+      return item
+    default: return nil
+    }
   }
 
-  @objc private func newSessionPressed() { workspace?.open(nil) }
+  private func updateNavigation() {
+    navigation.setEnabled(workspace?.sidebar.neighbor(of: workspace?.sessionId, step: -1) != nil, forSegment: 0)
+    navigation.setEnabled(workspace?.sidebar.neighbor(of: workspace?.sessionId, step: 1) != nil, forSegment: 1)
+  }
+
+  @objc private func navigateSession(_ sender: NSSegmentedControl) {
+    if sender.selectedSegment == 0 { workspace?.selectPreviousSession(sender) }
+    if sender.selectedSegment == 1 { workspace?.selectNextSession(sender) }
+  }
 
   override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
     guard let workspace, workspace.responds(to: action) else { return super.supplementalTarget(forAction: action, sender: sender) }
@@ -170,5 +198,5 @@ extension MainWindowController: NSMenuItemValidation {
 }
 
 extension NSToolbarItem.Identifier {
-  static let lodyNewSession = NSToolbarItem.Identifier("lody.newSession")
+  static let lodySessionNavigation = NSToolbarItem.Identifier("lody.sessionNavigation")
 }

@@ -1639,13 +1639,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fill window width"
+            "value": "Wider conversation column"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "对话铺满窗口宽度"
+            "value": "加宽对话阅读栏"
           }
         }
       }
@@ -1656,13 +1656,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Let conversations use the whole window instead of a centred reading column."
+            "value": "Give conversations more room while keeping a maximum width and centered alignment."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让对话占满整个窗口，而不是居中的阅读栏。"
+            "value": "增加对话的阅读空间，同时保留最大宽度并居中显示。"
           }
         }
       }
@@ -2823,6 +2823,28 @@
         }
       }
     },
+    "mac.sidebar.allProjects": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Projects"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有项目"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのプロジェクト"
+          }
+        }
+      }
+    },
     "mac.sidebar.approvals %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -2836,6 +2858,182 @@
           "stringUnit": {
             "state": "translated",
             "value": "待审批 · %lld"
+          }
+        }
+      }
+    },
+    "mac.sidebar.archive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archived Sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已归档会话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブ済みセッション"
+          }
+        }
+      }
+    },
+    "mac.sidebar.clearSearch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索をクリア"
+          }
+        }
+      }
+    },
+    "mac.sidebar.collapseProject": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "折りたたむ"
+          }
+        }
+      }
+    },
+    "mac.sidebar.done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了"
+          }
+        }
+      }
+    },
+    "mac.sidebar.empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No sessions yet"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有会话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッションがありません"
+          }
+        }
+      }
+    },
+    "mac.sidebar.expandProject": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開"
+          }
+        }
+      }
+    },
+    "mac.sidebar.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出错"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エラー"
+          }
+        }
+      }
+    },
+    "mac.sidebar.filterProjects": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter Projects"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选项目"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロジェクトを絞り込む"
           }
         }
       }
@@ -2857,6 +3055,72 @@
         }
       }
     },
+    "mac.sidebar.manageProjects": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage Projects…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理项目…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロジェクトを管理…"
+          }
+        }
+      }
+    },
+    "mac.sidebar.needsYou": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs you"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待你处理"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対応待ち"
+          }
+        }
+      }
+    },
+    "mac.sidebar.newChat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Chat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新对话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規チャット"
+          }
+        }
+      }
+    },
     "mac.sidebar.newSession": {
       "extractionState": "manual",
       "localizations": {
@@ -2874,6 +3138,28 @@
         }
       }
     },
+    "mac.sidebar.noMatches": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的会话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致するセッションはありません"
+          }
+        }
+      }
+    },
     "mac.sidebar.noProject": {
       "extractionState": "manual",
       "localizations": {
@@ -2887,6 +3173,94 @@
           "stringUnit": {
             "state": "translated",
             "value": "对话"
+          }
+        }
+      }
+    },
+    "mac.sidebar.now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚刚"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "たった今"
+          }
+        }
+      }
+    },
+    "mac.sidebar.openTab": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in New Tab"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在新标签页中打开"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規タブで開く"
+          }
+        }
+      }
+    },
+    "mac.sidebar.openWindow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in New Window"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在新窗口中打开"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規ウインドウで開く"
+          }
+        }
+      }
+    },
+    "mac.sidebar.otherSessions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other Sessions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他会话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他のセッション"
           }
         }
       }
@@ -2925,6 +3299,72 @@
         }
       }
     },
+    "mac.sidebar.searchAction": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        }
+      }
+    },
+    "mac.sidebar.sessionActions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session actions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话操作"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッション操作"
+          }
+        }
+      }
+    },
+    "mac.sidebar.settled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已归档"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブ"
+          }
+        }
+      }
+    },
     "mac.sidebar.untitled": {
       "extractionState": "manual",
       "localizations": {
@@ -2938,6 +3378,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "未命名会话"
+          }
+        }
+      }
+    },
+    "mac.sidebar.working": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行中"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行中"
           }
         }
       }

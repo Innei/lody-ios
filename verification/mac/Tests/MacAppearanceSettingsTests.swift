@@ -60,13 +60,16 @@ final class MacReadingTests: XCTestCase {
     return (view, root)
   }
 
-  func testFillWidthLiftsTheTranscriptWidthCap() throws {
+  func testWiderTranscriptStillHasAMaximumWidthAndStaysCentered() throws {
     let (view, root) = transcript(width: 1400)
     let prose = try XCTUnwrap(view.rowViews.last)
     XCTAssertLessThanOrEqual(prose.frame.width, 780)
     view.reading = MacReading(textSize: 13, fillWidth: true)
     root.layoutSubtreeIfNeeded()
-    XCTAssertGreaterThan(prose.frame.width, 1300)
+    XCTAssertGreaterThan(prose.frame.width, 780)
+    XCTAssertLessThanOrEqual(prose.frame.width, 1000)
+    let viewport = try XCTUnwrap(view.descendants(NSScrollView.self).first?.contentView)
+    XCTAssertEqual(prose.convert(prose.bounds, to: view).midX, viewport.convert(viewport.bounds, to: view).midX, accuracy: 1)
   }
 
   func testTextSizeReachesProseAndUserBubbles() throws {
@@ -84,7 +87,7 @@ final class MacReadingTests: XCTestCase {
     XCTAssertEqual(composer.input.font?.pointSize, 15)
   }
 
-  func testFillWidthLiftsTheComposerWidthCap() {
+  func testWiderComposerStillHasAMaximumWidthAndStaysCentered() {
     let composer = NSViewController()
     composer.view = NSView()
     let source = MacTranscriptSource(start: { _ in }, stop: {}, detail: { _ in nil }, respond: { _, _ in .accepted })
@@ -96,7 +99,24 @@ final class MacReadingTests: XCTestCase {
     XCTAssertLessThanOrEqual(composer.view.frame.width, 780)
     controller.reading = MacReading(textSize: 13, fillWidth: true)
     controller.view.layoutSubtreeIfNeeded()
-    XCTAssertGreaterThan(composer.view.frame.width, 1300)
+    XCTAssertGreaterThan(composer.view.frame.width, 780)
+    XCTAssertLessThanOrEqual(composer.view.frame.width, 1000)
+    XCTAssertEqual(composer.view.frame.midX, controller.view.bounds.midX, accuracy: 1)
+  }
+
+  func testRealComposerUsesTheAvailableReadingColumnInsteadOfHuggingItsControls() throws {
+    let controller = try XCTUnwrap(MacFixtures.environment.pane("s-mac") as? MacSessionController)
+    controller.reading = .standard
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1400, height: 720), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentViewController = controller
+    window.setContentSize(NSSize(width: 1400, height: 720))
+    window.layoutIfNeeded()
+    let composer = try XCTUnwrap(controller.view.descendants(MacComposerView.self).first)
+    XCTAssertGreaterThan(composer.frame.width, 700, "native popup and stack hugging must not shrink the reading column")
+    XCTAssertLessThanOrEqual(composer.frame.width, 780)
+    XCTAssertEqual(composer.convert(composer.bounds, to: controller.view).midX, controller.view.bounds.midX, accuracy: 1)
   }
 }
 

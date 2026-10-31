@@ -8,6 +8,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private let detail = MacDetailController()
   private var pane: MacSessionPane?
   private var streaming = false
+  private var sizedSidebar = false
   private var observers: [NSObjectProtocol] = []
   private(set) var sessionId: String?
   private(set) lazy var actions = MacSessionActions(source: environment.sessions, prompts: .live { [weak self] in self?.view.window })
@@ -21,7 +22,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   init(environment: MacEnvironment) {
     self.environment = environment
-    sidebar = SidebarViewController(source: environment.sessions)
+    sidebar = SidebarViewController(source: environment.sessions, account: environment.account)
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -34,12 +35,17 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   override func viewDidLoad() {
     super.viewDidLoad()
     let side = NSSplitViewItem(sidebarWithViewController: sidebar)
-    side.minimumThickness = 220
+    side.minimumThickness = 280
     side.maximumThickness = 380
+    side.preferredThicknessFraction = 320 / 1100
     side.canCollapse = true
+    side.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+    side.addTopAlignedAccessoryViewController(sidebar.topAccessory)
+    side.addBottomAlignedAccessoryViewController(sidebar.bottomAccessory)
     addSplitViewItem(side)
     let content = NSSplitViewItem(viewController: detail)
     content.minimumThickness = 420
+    content.automaticallyAdjustsSafeAreaInsets = true
     addSplitViewItem(content)
     sidebar.onSelect = { [weak self] id in self?.open(id) }
     observers.append(NotificationCenter.default.addObserver(forName: .lodyMacOpenSession, object: nil, queue: .main) { [weak self] note in
@@ -55,8 +61,16 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       })
     }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
+    sidebar.onShowSettings = environment.showSettings
     sidebar.actions = actions
     sidebar.onAction = { [weak self] action, id in self?.run(action, id) }
+  }
+
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    guard !sizedSidebar, view.window != nil, splitView.bounds.width >= 760 else { return }
+    sizedSidebar = true
+    splitView.setPosition(320, ofDividerAt: 0)
   }
 
   private func run(_ action: MacSessionAction, _ id: String?) {
@@ -71,6 +85,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   @objc func selectPreviousSession(_ sender: Any?) { step(-1) }
 
   @objc func selectNextSession(_ sender: Any?) { step(1) }
+  @objc func findSessions(_ sender: Any?) { sidebar.focusSearch() }
 
   private func step(_ offset: Int) {
     guard let next = sidebar.neighbor(of: sessionId, step: offset) else { return }

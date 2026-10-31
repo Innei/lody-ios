@@ -13,6 +13,9 @@ struct MacEnvironment {
   var account: @MainActor () -> AuthAccount? = { AuthSession.shared.snapshot.account }
   var authChanges: Notification.Name = .lodyAuthDidChange
   var signIn: @MainActor () -> SignInViewController = { SignInViewController() }
+  var showSettings: @MainActor (MacSettingsPage) -> Void = { page in
+    (NSApp.delegate as? LodyMacAppDelegate)?.showSettings(page: page)
+  }
 
   static var live: MacEnvironment {
     MacEnvironment(

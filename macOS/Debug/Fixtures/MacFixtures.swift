@@ -5,6 +5,7 @@ import LodyData
 
 @MainActor
 enum MacFixtures {
+  private static let clock = Date().timeIntervalSince1970 * 1000
   static var listState: SessionListState {
     let catalog = SessionCatalog(
       projects: [
@@ -13,13 +14,13 @@ enum MacFixtures {
         SessionProject(id: "p-docs", name: "handbook", rootPath: "~/git/handbook"),
       ],
       sessions: [
-        SessionItem(id: "s-mac", title: "Build the AppKit sidebar", status: "running", projectId: "p-ios", lastMessageAt: 1_800_000_090, branchName: "mac-client", machineId: "m-studio", agentType: "claude"),
-        SessionItem(id: "s-review", title: "Review transcript projection", projectId: "p-ios", lastMessageAt: 1_800_000_060, lastReadAt: 1_800_000_000, machineId: "m-studio", agentType: "codex"),
-        SessionItem(id: "s-tabs", title: "Native window tabs", projectId: "p-ios", lastMessageAt: 1_800_000_030, lastReadAt: 1_800_000_030, machineId: "m-studio"),
-        SessionItem(id: "s-landing", title: "Landing page copy", projectId: "p-web", lastMessageAt: 1_800_000_080, awaitingUserSince: 1_800_000_079, machineId: "m-mini", agentType: "claude"),
-        SessionItem(id: "s-deploy", title: "Deploy preview", projectId: "p-web", lastMessageAt: 1_800_000_010, lastReadAt: 1_800_000_010, machineId: "m-mini"),
-        SessionItem(id: "s-plan", title: "Q4 roadmap", pinned: true, projectId: "p-docs", lastMessageAt: 1_800_000_050, lastReadAt: 1_800_000_050, machineId: "m-studio"),
-        SessionItem(id: "s-old", title: "Archived spike", archived: true, projectId: "p-ios", lastMessageAt: 1_800_000_099),
+        SessionItem(id: "s-mac", title: "Build the AppKit sidebar", status: "running", projectId: "p-ios", lastMessageAt: clock - 60_000, branchName: "mac-client", machineId: "m-studio", agentType: "claude"),
+        SessionItem(id: "s-review", title: "Review transcript projection", status: "completed", projectId: "p-ios", lastMessageAt: clock - 240_000, lastReadAt: clock - 600_000, machineId: "m-studio", agentType: "codex"),
+        SessionItem(id: "s-tabs", title: "Native window tabs", projectId: "p-ios", lastMessageAt: clock - 480_000, lastReadAt: clock - 480_000, machineId: "m-studio"),
+        SessionItem(id: "s-landing", title: "Landing page copy", projectId: "p-web", lastMessageAt: clock - 120_000, awaitingUserSince: clock - 121_000, machineId: "m-mini", agentType: "claude"),
+        SessionItem(id: "s-deploy", title: "Deploy preview", projectId: "p-web", lastMessageAt: clock - 600_000, lastReadAt: clock - 600_000, machineId: "m-mini"),
+        SessionItem(id: "s-plan", title: "Q4 roadmap", pinned: true, projectId: "p-docs", lastMessageAt: clock - 360_000, lastReadAt: clock - 360_000, machineId: "m-studio"),
+        SessionItem(id: "s-old", title: "Archived spike", archived: true, projectId: "p-ios", lastMessageAt: clock - 30_000),
       ],
       machineIds: ["m-studio", "m-mini"],
       machineNames: ["m-studio": "Mac Studio", "m-mini": "Mac mini"]
@@ -32,13 +33,13 @@ enum MacFixtures {
 
   static var environment: MacEnvironment { environment(history: 0) }
 
-  static func environment(history: Int, media: Bool = false, attachments: Bool = false) -> MacEnvironment {
+  static func environment(history: Int, media: Bool = false, attachments: Bool = false, shell: Bool = false) -> MacEnvironment {
     let sessions = MacSessionsSource.fixture(listState)
     return MacEnvironment(
       sessions: sessions,
       pane: { sessionId in
         guard sessionId == "s-mac" else { return MacSessionSummaryController(sessionId: sessionId, sessions: sessions) }
-        let transcript = MacTranscriptFixture(history: history, media: media)
+        let transcript = MacTranscriptFixture(history: history, media: media, shell: shell)
         var model = MacComposerModel(mode: .reply)
         model.replyReady = true
         model.replyCapability = MacComposerFixture.capability
@@ -74,12 +75,18 @@ enum MacFixtures {
       requiresAccount: false,
       windowIdentifier: "catalog-scene",
       titlePrefix: "Catalog · ",
-      windowClass: MacOffscreen.windowClass
+      windowClass: MacOffscreen.windowClass,
+      account: { AuthAccount(user: AuthUser(id: "u-fixture", name: "Innei", email: "fixture@example.invalid", image: nil), workspaces: listState.workspaces) },
+      showSettings: { DebugSceneCoordinator.shared.showSettings($0) }
     )
   }
 
-  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false, attachments: Bool = false) -> [NSWindow] {
-    let controller = MainWindowController(environment: environment(history: history, media: media, attachments: attachments), sessionId: sessionId)
+  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false, attachments: Bool = false, shell: Bool = false) -> [NSWindow] {
+    let controller = MainWindowController(environment: environment(history: history, media: media, attachments: attachments, shell: shell), sessionId: sessionId)
+    if shell {
+      controller.window?.setContentSize(NSSize(width: 1232, height: 812))
+      controller.window?.center()
+    }
     if let workspace = controller.workspace { MacTabCoordinator.shared.select(workspace) }
     return controller.window.map { [$0] } ?? []
   }

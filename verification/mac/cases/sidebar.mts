@@ -36,33 +36,30 @@ export async function sidebar(session: Session) {
     expect(
       order(
         [
-          'session-s-plan',
           'session-s-mac',
           'session-s-review',
           'session-s-tabs',
+          'session-s-plan',
           'session-s-landing',
+          'session-s-deploy',
         ],
         ids,
       ),
-      `pinned first, then projects by recency: ${ids.join(', ')}`,
+      `sessions stay together inside their machine and project: ${ids.join(', ')}`,
     );
     expect(
       find(
         ready,
-        (node) =>
-          node.identifier === 'sidebar-approvals' &&
-          node.text === 'Needs Approval · 1',
+        (node) => node.identifier === 'sidebar-new-session' && node.enabled,
       ).length === 1,
-      'the approval shortcut counts the waiting session',
+      'the sidebar provides a native new-session action',
     );
     expect(
       find(
         ready,
-        (node) =>
-          node.identifier === 'sidebar-machines' &&
-          node.text === 'Machines online: 2',
+        (node) => node.identifier === 'sidebar-search' && node.enabled,
       ).length === 1,
-      'the footer reports machine presence',
+      'native search is directly available',
     );
     await capture(session, `sidebar-${appearance}`);
   }

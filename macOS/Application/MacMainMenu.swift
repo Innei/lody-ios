@@ -63,6 +63,8 @@ enum MacMainMenu {
     menu.addItem(item(String(localized: "mac.menu.copy", bundle: .lodyMac), #selector(NSText.copy(_:)), "c"))
     menu.addItem(item(String(localized: "mac.menu.paste", bundle: .lodyMac), #selector(NSText.paste(_:)), "v"))
     menu.addItem(item(String(localized: "mac.menu.selectAll", bundle: .lodyMac), #selector(NSText.selectAll(_:)), "a"))
+    menu.addItem(.separator())
+    menu.addItem(item(String(localized: "mac.sidebar.search", bundle: .lodyMac), #selector(MacWorkspaceController.findSessions(_:)), "f"))
     return menu
   }
 

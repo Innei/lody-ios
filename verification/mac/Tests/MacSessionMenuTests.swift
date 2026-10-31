@@ -75,10 +75,10 @@ final class MacSessionMenuTests: XCTestCase {
   func testPreviousAndNextFollowTheSidebarOrder() {
     let sidebar = SidebarViewController(source: sessions())
     _ = sidebar.view
-    XCTAssertEqual(sidebar.neighbor(of: "s-plan", step: 1), "s-mac")
-    XCTAssertEqual(sidebar.neighbor(of: "s-landing", step: -1), "s-tabs")
+    XCTAssertEqual(sidebar.neighbor(of: "s-plan", step: 1), "s-landing")
+    XCTAssertEqual(sidebar.neighbor(of: "s-landing", step: -1), "s-plan")
     XCTAssertNil(sidebar.neighbor(of: "s-deploy", step: 1))
-    XCTAssertEqual(sidebar.neighbor(of: nil, step: 1), "s-plan")
+    XCTAssertEqual(sidebar.neighbor(of: nil, step: 1), "s-mac")
   }
 
   func testTabShortcutsPickByPositionAndNineIsLast() {

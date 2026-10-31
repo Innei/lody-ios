@@ -40,6 +40,14 @@ extension MacSessionAction {
     item.keyEquivalentModifierMask = modifiers
     item.representedObject = rawValue
     item.target = target
+    let symbol = switch self {
+    case .rename: "pencil"
+    case .archive: "archivebox"
+    case .pin: "pin"
+    case .read: "envelope.open"
+    case .delete: "trash"
+    }
+    item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     return item
   }
 }

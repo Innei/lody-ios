@@ -14,7 +14,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var parsed = MacTranscriptModel.Parsed("[]")
   private var feed = SessionFeedState()
   private var streaming = false
-  private var composerCap: NSLayoutConstraint?
+  private var composerWidths: [NSLayoutConstraint] = []
   private var readingObserver: NSObjectProtocol?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
@@ -23,7 +23,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   var reading = MacReading.current() {
     didSet {
       transcript.reading = reading
-      composerCap?.isActive = !reading.fillWidth
+      composerWidths.forEach { $0.constant = reading.columnWidth }
     }
   }
 
@@ -61,15 +61,21 @@ final class MacSessionController: NSViewController, MacSessionPane {
       constraints += [
         transcript.bottomAnchor.constraint(equalTo: composer.view.topAnchor),
         composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-        composer.view.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -32).withPriority(.defaultHigh),
+        composer.view.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -32),
         composer.view.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
       ]
     } else {
       constraints.append(transcript.bottomAnchor.constraint(equalTo: root.bottomAnchor))
     }
     NSLayoutConstraint.activate(constraints)
-    composerCap = composer?.view.widthAnchor.constraint(lessThanOrEqualToConstant: 780)
-    composerCap?.isActive = !reading.fillWidth
+    if let composer {
+      // A capped column must not imply a maximum width for its split pane or window.
+      composerWidths = [
+        composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: reading.columnWidth),
+        composer.view.widthAnchor.constraint(equalToConstant: reading.columnWidth).withPriority(.init(249)),
+      ]
+      NSLayoutConstraint.activate(composerWidths)
+    }
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     transcript.media = source.media

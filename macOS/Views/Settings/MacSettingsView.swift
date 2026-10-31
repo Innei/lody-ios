@@ -15,7 +15,7 @@ struct MacSettingsView: View {
           Section {
             ForEach(group.pages) { page in
               Label {
-                Text(page.title)
+                Text(page.title).font(.system(size: 13))
               } icon: {
                 MacSettingsTile(page: page)
               }
@@ -45,7 +45,9 @@ struct MacSettingsTile: View {
 
   var body: some View {
     Image(systemName: page.symbol)
-      .font(.system(size: 11, weight: .semibold))
+      .resizable()
+      .scaledToFit()
+      .frame(width: 12, height: 12)
       .foregroundStyle(.white)
       .frame(width: 20, height: 20)
       .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(nsColor: page.tile)))
@@ -108,7 +110,7 @@ struct MacSettingsSectionHeader: View {
 
   var body: some View {
     HStack {
-      Text(section.title)
+      Text(section.title).font(.system(size: 11, weight: .medium))
       Spacer()
       if section == .workspace, model.showsSwitcher {
         Menu {
@@ -116,8 +118,11 @@ struct MacSettingsSectionHeader: View {
             Button(workspace.name) { model.selectWorkspace(workspace.id) }
           }
         } label: {
-          Text(model.state.workspace?.name ?? "")
+          Text(model.state.workspace?.name ?? "").font(.system(size: 11, weight: .medium))
         }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .controlSize(.small)
         .menuStyle(.borderlessButton)
         .fixedSize()
         .accessibilityLabel(String(localized: "mac.settings.workspace.switch", bundle: .lodyMac))

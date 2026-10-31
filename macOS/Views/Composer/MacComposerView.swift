@@ -20,6 +20,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
   var onSend: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private let tray = NSStackView()
+  private let noticeRow = NSStackView()
   private let inputHeight: NSLayoutConstraint
   private var readingObserver: NSObjectProtocol?
 
@@ -31,7 +32,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     let scroll = NSScrollView()
     inputHeight = scroll.heightAnchor.constraint(equalToConstant: 44)
     super.init(frame: frameRect)
-    let fill = MacFillView(fill: .controlBackgroundColor, radius: 16, border: true)
+    let fill = MacFillView(fill: .controlBackgroundColor, radius: 14, border: true)
     for popup in [project, machine, agent, mode, modelPicker, effort] {
       popup.isBordered = false
       popup.controlSize = .small
@@ -51,11 +52,13 @@ final class MacComposerView: NSView, MacFileDropTarget {
     notice.maximumNumberOfLines = 2
     notice.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     tray.setViews([project, machine, agent, context], in: .leading)
-    tray.spacing = 4
+    tray.spacing = 8
+    tray.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 8)
     input.font = .systemFont(ofSize: reading.textSize)
     input.isRichText = false
     input.drawsBackground = false
-    input.textContainerInset = NSSize(width: 2, height: 6)
+    input.textContainerInset = NSSize(width: 0, height: 8)
+    input.textContainer?.lineFragmentPadding = 0
     input.allowsUndo = true
     input.isVerticallyResizable = true
     input.autoresizingMask = [.width]
@@ -92,31 +95,47 @@ final class MacComposerView: NSView, MacFileDropTarget {
     let controls = NSStackView()
     controls.setViews([attach, mode], in: .leading)
     controls.setViews([modelPicker, effort, send], in: .trailing)
-    let stack = NSStackView(views: [tray, notice, strip, scroll, controls])
+    controls.spacing = 8
+    controls.alignment = .centerY
+    let body = NSStackView(views: [strip, scroll, controls])
+    body.orientation = .vertical
+    body.alignment = .leading
+    body.spacing = 12
+    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+    noticeRow.addArrangedSubview(notice)
+    noticeRow.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
+    let stack = NSStackView(views: [tray, noticeRow, fill])
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 6
-    stack.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
-    for view in [fill, stack] { view.translatesAutoresizingMaskIntoConstraints = false }
-    addSubview(fill)
-    fill.addSubview(stack)
+    stack.spacing = 12
+    // The host chooses the reading width; only the tray hugs its own context labels.
+    for flexible in [controls, body, stack, noticeRow] {
+      flexible.setHuggingPriority(.init(1), for: .horizontal)
+      flexible.setContentHuggingPriority(.init(1), for: .horizontal)
+    }
+    for view in [fill, body, stack] { view.translatesAutoresizingMaskIntoConstraints = false }
+    addSubview(stack)
+    fill.addSubview(body)
     NSLayoutConstraint.activate([
-      fill.topAnchor.constraint(equalTo: topAnchor),
-      fill.leadingAnchor.constraint(equalTo: leadingAnchor),
-      fill.trailingAnchor.constraint(equalTo: trailingAnchor),
-      fill.bottomAnchor.constraint(equalTo: bottomAnchor),
-      stack.topAnchor.constraint(equalTo: fill.topAnchor),
-      stack.leadingAnchor.constraint(equalTo: fill.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
-      stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
-      tray.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -22),
-      notice.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -26),
-      strip.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
-      scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
-      controls.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
+      stack.topAnchor.constraint(equalTo: topAnchor),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+      tray.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor),
+      noticeRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      notice.widthAnchor.constraint(lessThanOrEqualTo: noticeRow.widthAnchor, constant: -16),
+      fill.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      body.topAnchor.constraint(equalTo: fill.topAnchor),
+      body.leadingAnchor.constraint(equalTo: fill.leadingAnchor),
+      body.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
+      body.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
+      strip.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      scroll.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      controls.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
       inputHeight,
-      send.widthAnchor.constraint(equalToConstant: 28),
-      send.heightAnchor.constraint(equalToConstant: 28),
+      send.widthAnchor.constraint(equalToConstant: 32),
+      send.heightAnchor.constraint(equalToConstant: 32),
     ])
     setAccessibilityIdentifier("composer")
     readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -151,13 +170,20 @@ final class MacComposerView: NSView, MacFileDropTarget {
       notice.stringValue = model.attachmentNotice
     }
     notice.isHidden = notice.stringValue.isEmpty
+    noticeRow.isHidden = notice.isHidden
     strip.render(model.attachments.items.map(\.attachment))
     strip.isHidden = model.attachments.isEmpty
     let choice = model.choice
     fill(mode, model.modes.map(\.name), selected: model.modes.firstIndex { $0.id == choice.modeId } ?? (model.modes.isEmpty ? nil : 0))
     mode.isHidden = model.modes.isEmpty
     let full = choice.modeId.map(MacComposerModel.isFullAccess) ?? false
-    mode.contentTintColor = full ? .systemOrange : nil
+    mode.contentTintColor = .secondaryLabelColor
+    for item in mode.itemArray {
+      let warning = MacComposerModel.isFullAccess(model.modes[mode.index(of: item)].id)
+      item.image = NSImage(systemSymbolName: warning ? "lock.open" : "checkmark.shield", accessibilityDescription: nil)
+      item.image?.size = NSSize(width: 14, height: 14)
+    }
+    mode.contentTintColor = full ? .systemOrange : .secondaryLabelColor
     fill(modelPicker, model.models.map(\.name), selected: model.models.firstIndex { $0.id == choice.modelId } ?? (model.models.isEmpty ? nil : 0))
     modelPicker.isHidden = model.models.isEmpty
     fill(effort, model.efforts.map(\.capitalized), selected: model.efforts.firstIndex { $0 == choice.effort })
@@ -165,7 +191,8 @@ final class MacComposerView: NSView, MacFileDropTarget {
     send.isEnabled = model.canSend
     send.alphaValue = model.canSend ? 1 : 0.4
     let lines = max(1, min(8, input.string.split(separator: "\n", omittingEmptySubsequences: false).count))
-    inputHeight.constant = CGFloat(lines) * 17 + 14
+    let minimum: CGFloat = newSession ? 96 : 56
+    inputHeight.constant = max(minimum, CGFloat(lines) * 17 + 16)
   }
 
   private static func notice(_ model: MacComposerModel) -> String {
@@ -239,7 +266,7 @@ final class MacComposerTextView: NSTextView {
   override func draw(_ dirtyRect: NSRect) {
     super.draw(dirtyRect)
     guard string.isEmpty, !placeholder.isEmpty else { return }
-    let origin = NSPoint(x: textContainerInset.width + 5, y: textContainerInset.height)
+    let origin = NSPoint(x: textContainerInset.width + (textContainer?.lineFragmentPadding ?? 0), y: textContainerInset.height)
     (placeholder as NSString).draw(at: origin, withAttributes: [
       .font: font ?? .systemFont(ofSize: 13), .foregroundColor: NSColor.placeholderTextColor,
     ])

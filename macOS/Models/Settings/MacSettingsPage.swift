@@ -45,16 +45,16 @@ enum MacSettingsPage: String, CaseIterable, Identifiable {
 
   var symbol: String {
     switch self {
-    case .account: "person.crop.circle"
-    case .general: "gearshape"
+    case .account: "person.crop.circle.fill"
+    case .general: "gearshape.fill"
     case .appearance: "circle.lefthalf.filled"
-    case .keyboard: "keyboard"
-    case .workspace: "building.2"
-    case .machines: "desktopcomputer"
-    case .projects: "folder"
-    case .about: "info.circle"
+    case .keyboard: "keyboard.fill"
+    case .workspace: "building.2.fill"
+    case .machines: "macpro.gen3.fill"
+    case .projects: "folder.fill"
+    case .about: "info.circle.fill"
     #if DEBUG
-    case .debug: "hammer"
+    case .debug: "hammer.fill"
     #endif
     }
   }
