@@ -70,6 +70,8 @@ final class SidebarSearchSurface: NSView {
   var focused = false { didSet { needsDisplay = true } }
   private let field: NSTextField
   private let clear = NSButton()
+  private var hover: NSTrackingArea?
+  private var hovered = false { didSet { needsDisplay = true } }
 
   init(field: NSTextField) {
     self.field = field
@@ -92,7 +94,7 @@ final class SidebarSearchSurface: NSView {
     translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       heightAnchor.constraint(equalToConstant: 32),
-      icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
       icon.centerYAnchor.constraint(equalTo: centerYAnchor),
       icon.widthAnchor.constraint(equalToConstant: 14), icon.heightAnchor.constraint(equalToConstant: 14),
       field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 32),
@@ -110,6 +112,18 @@ final class SidebarSearchSurface: NSView {
 
   func updateValue() { clear.isHidden = field.stringValue.isEmpty }
 
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let hover { removeTrackingArea(hover) }
+    let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+    addTrackingArea(area)
+    hover = area
+  }
+
+  override func mouseEntered(with event: NSEvent) { hovered = true }
+  override func mouseExited(with event: NSEvent) { hovered = false }
+  override func mouseDown(with event: NSEvent) { window?.makeFirstResponder(field) }
+
   @objc private func clearPressed() {
     field.stringValue = ""
     field.currentEditor()?.string = ""
@@ -119,12 +133,15 @@ final class SidebarSearchSurface: NSView {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    NSColor.controlBackgroundColor.withAlphaComponent(0.55).setFill()
-    let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-    path.fill()
-    let border = focused ? NSColor.lodyAccent.withAlphaComponent(0.7) : NSColor.separatorColor
-    border.setStroke()
-    path.lineWidth = 1
-    path.stroke()
+    let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
+    if hovered || focused {
+      NSColor.quaternaryLabelColor.setFill()
+      path.fill()
+    }
+    if focused {
+      NSColor.keyboardFocusIndicatorColor.setStroke()
+      path.lineWidth = 1
+      path.stroke()
+    }
   }
 }

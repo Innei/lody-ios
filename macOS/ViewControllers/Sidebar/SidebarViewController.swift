@@ -124,7 +124,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     let stack = NSStackView(views: [new, searchSurface])
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 8
+    stack.spacing = 4
     stack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 12, right: 12)
     new.translatesAutoresizingMaskIntoConstraints = false
     new.heightAnchor.constraint(equalToConstant: 32).isActive = true

@@ -32,6 +32,7 @@ final class SidebarRowView: NSTableRowView {
 final class SidebarActionButton: NSButton {
   private var hover: NSTrackingArea?
   private var hovered = false { didSet { needsDisplay = true } }
+  override var alignmentRectInsets: NSEdgeInsets { .init() }
 
   override func updateTrackingAreas() {
     super.updateTrackingAreas()
@@ -70,13 +71,13 @@ final class SidebarActionButton: NSButton {
 // Keep AppKit's button drawing and accessibility while sharing the list's icon/text columns.
 private final class SidebarActionCell: NSButtonCell {
   override func imageRect(forBounds rect: NSRect) -> NSRect {
-    NSRect(x: rect.minX, y: rect.midY - 8, width: 16, height: 16)
+    NSRect(x: rect.minX + 8, y: rect.midY - 8, width: 16, height: 16)
   }
 
   override func titleRect(forBounds rect: NSRect) -> NSRect {
     var title = super.titleRect(forBounds: rect)
-    title.origin.x = rect.minX + 24
-    title.size.width = max(0, rect.width - 24)
+    title.origin.x = rect.minX + 32
+    title.size.width = max(0, rect.width - 32)
     return title
   }
 }
