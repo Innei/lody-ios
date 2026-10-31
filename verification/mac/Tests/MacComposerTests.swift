@@ -84,6 +84,35 @@ final class MacComposerLayoutTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(composer.input.enclosingScrollView?.frame.height ?? 0, 36, "the writing area accommodates more than one native text line")
   }
 
+  func testContextGlyphIsCenteredInTheMaterialVisibleAboveTheGlass() throws {
+    let composer = MacComposerView()
+    composer.translatesAutoresizingMaskIntoConstraints = false
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let root = NSView()
+    window.contentView = root
+    root.addSubview(composer)
+    NSLayoutConstraint.activate([
+      composer.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      composer.topAnchor.constraint(equalTo: root.topAnchor),
+      composer.widthAnchor.constraint(equalToConstant: 680),
+    ])
+    var model = MacComposerModel(mode: .newSession)
+    model.form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p", machineId: "m", name: "lody-ios")])
+    model.form.open(projectId: nil, context: nil)
+    composer.render(model, reply: ("", "", ""))
+    root.layoutSubtreeIfNeeded()
+    window.layoutIfNeeded()
+    root.layoutSubtreeIfNeeded()
+    let context = try XCTUnwrap(composer.descendants(NSVisualEffectView.self).first { $0.accessibilityIdentifier() == "composer-context-bar" })
+    let surface = try XCTUnwrap(composer.descendants(NSGlassEffectView.self).first)
+    let glyph = composer.agent.convert(try XCTUnwrap(composer.agent.cell).imageRect(forBounds: composer.agent.bounds), to: composer)
+    let above = context.frame.maxY - glyph.maxY
+    let below = glyph.minY - surface.frame.maxY
+    XCTAssertEqual(above, below, accuracy: 1, "center the actual AppKit glyph in the visible material, after accounting for glass overlap")
+  }
+
   func testSoftWrappedDraftGrowsAndShrinksWithoutChangingItsText() throws {
     let composer = MacComposerView()
     composer.translatesAutoresizingMaskIntoConstraints = false

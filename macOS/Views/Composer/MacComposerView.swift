@@ -17,6 +17,8 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
+  private static let contextControlSize: CGFloat = 32
+  private static let contextOverlap: CGFloat = 12
   private let tray = NSStackView()
   private let noticeRow = NSStackView()
   private let contextSurface = NSVisualEffectView()
@@ -27,6 +29,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
   private var preferredHeight: NSLayoutConstraint!
   private var bodyWidth: NSLayoutConstraint!
   private var trayWidth: NSLayoutConstraint!
+  private var trayHeightConstraint: NSLayoutConstraint!
   private var noticeWidth: NSLayoutConstraint!
   private var readingObserver: NSObjectProtocol?
 
@@ -72,7 +75,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     tray.setViews([project, machine], in: .leading)
     tray.setViews([agent], in: .trailing)
     tray.spacing = 8
-    tray.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 20, right: 12)
+    tray.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
     contextSurface.material = .popover
     contextSurface.state = .active
     contextSurface.blendingMode = .withinWindow
@@ -161,6 +164,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     for view in [body, tray, noticeRow] { view.translatesAutoresizingMaskIntoConstraints = false }
     bodyWidth = body.widthAnchor.constraint(equalToConstant: 0)
     trayWidth = tray.widthAnchor.constraint(equalToConstant: 0)
+    trayHeightConstraint = tray.heightAnchor.constraint(equalToConstant: 48)
     noticeWidth = noticeRow.widthAnchor.constraint(equalToConstant: 0)
     content.addSubview(body)
     contextSurface.addSubview(tray)
@@ -168,8 +172,8 @@ final class MacComposerView: NSView, MacFileDropTarget {
     preferredHeight.priority = .init(999)
     preferredHeight.isActive = true
     NSLayoutConstraint.activate([
-      agent.widthAnchor.constraint(equalToConstant: 32),
-      agent.heightAnchor.constraint(equalToConstant: 32),
+      agent.widthAnchor.constraint(equalToConstant: Self.contextControlSize),
+      agent.heightAnchor.constraint(equalToConstant: Self.contextControlSize),
       notice.widthAnchor.constraint(lessThanOrEqualTo: noticeRow.widthAnchor, constant: -16),
       strip.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
       scroll.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
@@ -250,7 +254,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     bodyWidth.constant = bounds.width
     trayWidth.constant = bounds.width - 24
     noticeWidth.constant = bounds.width - 24
-    NSLayoutConstraint.activate([bodyWidth, trayWidth, noticeWidth])
+    NSLayoutConstraint.activate([bodyWidth, trayWidth, noticeWidth, trayHeightConstraint])
     surface.frame.size = NSSize(width: bounds.width, height: max(surface.frame.height, 104))
     body.frame = surface.bounds
     surface.layoutSubtreeIfNeeded()
@@ -269,10 +273,13 @@ final class MacComposerView: NSView, MacFileDropTarget {
     body.frame = surface.bounds
     var height = bottom + surfaceHeight
     if !contextSurface.isHidden {
-      let trayHeight = ceil(tray.fittingSize.height)
-      contextSurface.frame = NSRect(x: 12, y: height - 12, width: bounds.width - 24, height: trayHeight)
-      tray.frame = contextSurface.bounds
-      height += trayHeight - 12
+      // Keep the material overlap outside the content layout. NSStackView centers
+      // its controls in its full bounds, including any covered portion.
+      let trayHeight = Self.contextControlSize + tray.edgeInsets.top + tray.edgeInsets.bottom
+      trayHeightConstraint.constant = trayHeight
+      contextSurface.frame = NSRect(x: 12, y: height - Self.contextOverlap, width: bounds.width - 24, height: trayHeight + Self.contextOverlap)
+      tray.frame = NSRect(x: 0, y: Self.contextOverlap, width: contextSurface.bounds.width, height: trayHeight)
+      height += trayHeight
     }
     if abs(preferredHeight.constant - height) > 0.5 { preferredHeight.constant = height }
   }
