@@ -327,14 +327,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func configureProject(_ cell: UICollectionViewListCell, _ row: LodyListRow) {
     let id = row.id
-    cell.contentConfiguration = LodyProjectRowContent(
-      row: row,
-      expanded: row.navigates ? nil : true,
-      onToggle: { [weak self] in self?.toggleOutline(id) }
-    )
+    let fold = LodyProjectRowContent.fold(for: row)
+    var toggle: (@MainActor () -> Void)?
+    if fold != nil { toggle = { [weak self] in self?.toggleOutline(id) } }
+    cell.contentConfiguration = LodyProjectRowContent(row: row, expanded: fold, onToggle: toggle)
     cell.accessories = []
     cell.accessibilityIdentifier = row.id
-    cell.accessibilityTraits = [.button, .header]
+    cell.accessibilityTraits = row.action ? [.button, .header] : .header
   }
 
   private func configureSession(_ cell: LodyIndentedCell, _ row: LodyListRow) {
@@ -584,6 +583,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       } else if flat, !flatSystem, index > 0 {
         section.contentInsets.top = model?.gap == .group ? LodyDesign.Rail.groupGap : LodyDesign.Rail.sectionGap
       }
+      section.contentInsets.trailing += self?.trailingInset ?? 0
       if outline, !flat {
         // The decoration spans the section frame including its insets; matching
         // them puts the card exactly under the rows.
@@ -654,7 +654,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    collection.frame = bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: 0, right: trailingInset))
+    collection.frame = bounds
     updateBottomInset()
     let insets = collection.adjustedContentInset
     if !segmentContainer.isHidden {
@@ -712,14 +712,18 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     scrollPhase?(false)
   }
 
-  var contentTop: CGFloat { collection.frame.minY + collection.adjustedContentInset.top }
+  func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    scrollPhase?(false)
+  }
+
+  var contentTop: CGFloat { collection.adjustedContentInset.top }
 
   func sectionTops() -> [(id: String, y: CGFloat)] {
     let ids = dataSource.snapshot().sectionIdentifiers
     return ids.enumerated().compactMap { index, id in
       guard collection.numberOfItems(inSection: index) > 0,
         let frame = collection.layoutAttributesForItem(at: IndexPath(item: 0, section: index))?.frame else { return nil }
-      return (id, frame.minY - collection.contentOffset.y + collection.frame.minY)
+      return (id, frame.minY - collection.contentOffset.y)
     }
   }
 
@@ -735,7 +739,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setTrailingInset(_ value: CGFloat) {
     guard value != trailingInset else { return }
     trailingInset = value
-    setNeedsLayout()
+    collection.collectionViewLayout.invalidateLayout()
+    collection.layoutIfNeeded()
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {

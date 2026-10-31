@@ -20,6 +20,42 @@ struct InboxIndexItem: Equatable, Sendable {
   var dot: SessionState?
 }
 
+struct InboxIndexVisibility {
+  private(set) var shown = false
+  private(set) var enabled = false
+  private var scrolling = false
+  private var touching = false
+
+  mutating func setEnabled(_ value: Bool) {
+    enabled = value
+    if !value { shown = false }
+  }
+
+  mutating func scrollBegan() {
+    scrolling = true
+    if enabled { shown = true }
+  }
+
+  mutating func scrollEnded() -> Bool {
+    scrolling = false
+    return shown && !touching
+  }
+
+  mutating func touchBegan() {
+    touching = true
+    scrolling = false
+  }
+
+  mutating func touchEnded() -> Bool {
+    touching = false
+    return shown
+  }
+
+  mutating func hideFired() {
+    if !scrolling && !touching { shown = false }
+  }
+}
+
 enum InboxProjectIndexModel {
   static let itemPitch: CGFloat = 44
 

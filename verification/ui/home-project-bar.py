@@ -50,4 +50,8 @@ switch('另一个工作区')
 ui.wait(lambda items: 'solo-session' in ids(items), 'Missing the one-project workspace')
 assert 'project-bar' not in ids(ui.state()), 'One project needs no project bar'
 ui.capture('bar-single')
+switch('Design states')
+bar = ui.element('project-bar')['frame']
+band = ui.wait(lambda items: next((i['frame'] for i in items if i.get('AXUniqueId') == 'toggle:pinned'), None), 'Missing the Pinned band')
+assert bar['y'] + bar['height'] - 1 <= band['y'] <= bar['y'] + bar['height'] + 12, ('A bar that appears keeps the first band under it', bar, band)
 print('PASS: the glass project bar filters projects, hides for search and single projects')

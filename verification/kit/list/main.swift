@@ -190,6 +190,8 @@ struct LodyListRow {
   var wrapSubtitle = false
   var imageAsset = ""
   var filePath = ""
+  var action = false
+  var navigates = false
 }
 
 extension UIColor {
@@ -454,6 +456,9 @@ assert(abs(frame(statusGlyph(in: compactProject), in: compactProject).midX - Lod
 assert(abs(compactProject.bounds.height - 44) <= 0.5, "A compact project band keeps a 44 pt target: \(compactProject.bounds.height)")
 assert(compactProject.layer.cornerRadius >= 8 && compactProject.layer.cornerCurve == .continuous, "Inset sidebar bands round their corners")
 assert(railProject.layer.cornerRadius == 0, "Full-bleed phone bands stay square")
+assert(LodyProjectRowContent.fold(for: LodyListRow(title: "lody-ios", parent: true, action: true)) == true, "A band with sessions folds")
+assert(LodyProjectRowContent.fold(for: LodyListRow(title: "lody-ios", parent: true, action: false)) == nil, "An inert band has no fold control")
+assert(LodyProjectRowContent.fold(for: LodyListRow(title: "Empty", parent: true, action: true, navigates: true)) == nil, "An empty band navigates instead of folding")
 var bandAlpha: CGFloat = 0
 UIColor.lodyBand.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)).getWhite(nil, alpha: &bandAlpha)
 assert(bandAlpha < 0.2, "The band is a wash so it reads on both the phone ground and the sidebar ground")

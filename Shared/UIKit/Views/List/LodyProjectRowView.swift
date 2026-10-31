@@ -7,6 +7,10 @@ struct LodyProjectRowContent: UIContentConfiguration {
   var highlighted = false
   var onToggle: (@MainActor () -> Void)?
 
+  static func fold(for row: LodyListRow) -> Bool? {
+    row.navigates || !row.action ? nil : true
+  }
+
   var accessibilityLabel: String {
     [row.title, row.subtitle, row.value, row.badge].filter { !$0.isEmpty }.joined(separator: ", ")
   }

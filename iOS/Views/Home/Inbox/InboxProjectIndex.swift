@@ -8,17 +8,21 @@ final class InboxProjectIndex: UIView {
 
   var jump: ((String) -> Void)?
   var visibilityChanged: ((Bool) -> Void)?
-  var enabled = false {
-    didSet { if !enabled { present(false) } }
+  var enabled: Bool {
+    get { visibility.enabled }
+    set {
+      visibility.setEnabled(newValue && items.count > 1)
+      apply()
+    }
   }
-  private(set) var shown = false
+  var shown: Bool { visibility.shown }
+  private var visibility = InboxIndexVisibility()
+  private var presented = false
   private let glass = UIVisualEffectView(effect: UIGlassEffect())
   private var cells: [InboxIndexCell] = []
   private var items: [InboxIndexItem] = []
   private var current: String?
   private var scrubbed: Int?
-  private var touching = false
-  private var scrolling = false
   private var hideWork: DispatchWorkItem?
   private let haptics = UISelectionFeedbackGenerator()
 
@@ -66,8 +70,13 @@ final class InboxProjectIndex: UIView {
   }
 
   func setScrolling(_ value: Bool) {
-    scrolling = value
-    if value { present(true) } else { scheduleHide() }
+    hideWork?.cancel()
+    if value {
+      visibility.scrollBegan()
+      apply()
+    } else if visibility.scrollEnded() {
+      scheduleHide()
+    }
   }
 
   override func layoutSubviews() {
@@ -80,7 +89,7 @@ final class InboxProjectIndex: UIView {
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    touching = true
+    visibility.touchBegan()
     hideWork?.cancel()
     haptics.prepare()
     scrub(touches)
@@ -109,9 +118,8 @@ final class InboxProjectIndex: UIView {
   }
 
   private func endTouch() {
-    touching = false
     scrubbed = nil
-    scheduleHide()
+    if visibility.touchEnded() { scheduleHide() }
   }
 
   private func select(_ id: String) {
@@ -121,24 +129,25 @@ final class InboxProjectIndex: UIView {
 
   private func scheduleHide() {
     hideWork?.cancel()
-    guard !touching, !scrolling else { return }
-    let work = DispatchWorkItem { [weak self] in self?.present(false) }
+    let work = DispatchWorkItem { [weak self] in
+      self?.visibility.hideFired()
+      self?.apply()
+    }
     hideWork = work
     DispatchQueue.main.asyncAfter(deadline: .now() + Self.hideDelay, execute: work)
   }
 
-  private func present(_ visible: Bool) {
-    let next = visible && enabled && items.count > 1
-    guard next != shown else { return }
-    shown = next
-    hideWork?.cancel()
+  private func apply() {
+    let next = visibility.shown
+    guard next != presented else { return }
+    presented = next
     if next { isHidden = false }
     UIView.animate(springDuration: 0.45, bounce: 0.2, options: [.allowUserInteraction, .beginFromCurrentState]) {
       self.alpha = next ? 1 : 0
       self.transform = next ? .identity : Self.away
       self.visibilityChanged?(next)
     } completion: { _ in
-      if !self.shown { self.isHidden = true }
+      if !self.presented { self.isHidden = true }
     }
   }
 }
