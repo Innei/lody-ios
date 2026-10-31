@@ -25,6 +25,15 @@ final class SettingsTests: LodyMacUITestCase {
     for (page, identifier) in pages { show(page, expecting: identifier) }
   }
 
+  func testProjectSettingsSidebarInBothAppearances() {
+    for appearance in ["light", "dark"] {
+      open("settings", appearance)
+      show("projects", expecting: "settings-projects-share-m-studio:local:p2")
+      XCTAssertTrue(control("settings-workspace-switch").exists)
+      attach("settings-sidebar-projects-\(appearance)", scene)
+    }
+  }
+
   func testGeneralAppearanceAndAboutInLightAndDark() {
     for appearance in ["light", "dark"] {
       open("settings", appearance)
