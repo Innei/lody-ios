@@ -7,6 +7,25 @@ final class SidebarTests: LodyMacUITestCase {
     outline.cells.allElementsBoundByIndex.map(\.label).filter { sessionTitles.contains($0) }
   }
 
+  func testNativeChromeStudiesInBothAppearances() {
+    for appearance in ["light", "dark"] {
+      for kind in ["footer", "reply", "new"] {
+        for variant in ["a", "b", "c"] {
+          let name = "chrome-\(kind)-\(variant)"
+          open(name, appearance)
+          XCTAssertTrue(scene.outlines["sidebar-sessions"].exists)
+          if kind != "footer" {
+            let input = scene.textViews["chrome-study-input"]
+            XCTAssertTrue(input.exists)
+            XCTAssertEqual(value(input), "Keep the AppKit controls and align the sidebar rows.")
+            XCTAssertGreaterThan(input.frame.width, 500, "compare variants at the same available reading width")
+          }
+          attach("\(name)-\(appearance)", scene)
+        }
+      }
+    }
+  }
+
   func testSidebarToggleAnimationKeepsWindowFrameAndWideChatCentered() {
     for appearance in ["light", "dark"] {
       open("sidebar", appearance)

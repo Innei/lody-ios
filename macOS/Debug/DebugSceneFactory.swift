@@ -23,7 +23,14 @@ enum DebugSceneFactory {
   }
 
   static var scenes: [Scene] {
-    [
+    let studies = MacChromeStudy.variants.flatMap { variant in
+      [
+        Scene(id: "chrome-footer-\(variant)", title: "Account bar · \(variant.uppercased())") { MacChromeStudy.windows(footer: variant) },
+        Scene(id: "chrome-reply-\(variant)", title: "Reply composer · \(variant.uppercased())") { MacChromeStudy.windows(composer: variant) },
+        Scene(id: "chrome-new-\(variant)", title: "New session composer · \(variant.uppercased())") { MacChromeStudy.windows(composer: variant, newSession: true) },
+      ]
+    }
+    return [
       Scene(id: "sign-in", title: "Sign in") { [signInWindow(code: nil, title: "Sign in")] },
       Scene(id: "sign-in-code", title: "Sign in · device code") { [signInWindow(code: "WXYZ-1234", title: "Sign in · device code")] },
       Scene(id: "sign-in-done", title: "Sign in · signed in") {
@@ -46,7 +53,7 @@ enum DebugSceneFactory {
         return workspace + [settings]
       },
       Scene(id: "settings", title: "Settings") { [settingsWindow(page: .general)] },
-    ]
+    ] + studies
   }
 
   static func scene(_ id: String) -> Scene? { scenes.first { $0.id == id } }
