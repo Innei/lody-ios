@@ -57,6 +57,23 @@ do {
     try expect(!text.contains(secret), "Export excludes unapproved or unvalidated metadata")
   }
   try expect(DiagnosticsStore.correlation("abc") == "ba7816bf8f01cfea", "Activity correlation matches the server SHA-256 prefix")
+  let syncFields = ["session": DiagnosticsStore.correlation("session-1"), "readStage": "poll", "syncCode": "timeout_error",
+    "ageMs": "35012", "attempts": "2", "syncStatus": "syncing"]
+  app.record("session-sync", "read_retry", fields: syncFields)
+  app.record("session-sync", "runtime_resume", fields: ["hasView": "true", "contractReady": "false", "handshakeDeferred": "true",
+    "runtimePhase": "live", "runtimeReason": "machine_presence"])
+  app.record("session-sync", "privacy", fields: ["session": "private-session", "readStage": "private-read",
+    "syncCode": "https://private.host/path", "syncStatus": "private-status", "ageMs": "private-age",
+    "runtimePhase": "private-phase", "runtimeReason": "Private Reason", "hasView": "private-bool"])
+  app.flush()
+  let (syncText, syncRecords) = try exported(app)
+  let retry = syncRecords.first { $0["event"] as? String == "read_retry" }?["fields"] as? [String: String]
+  try expect(retry == syncFields, "Session sync records keep read stage, code, age, attempts and status")
+  let resume = syncRecords.first { $0["event"] as? String == "runtime_resume" }?["fields"] as? [String: String]
+  try expect(resume?.count == 5, "Runtime resume keeps view, contract, handshake, phase and reason")
+  for secret in ["private-session", "private-read", "private.host", "private-status", "private-age", "private-phase", "Private Reason", "private-bool"] {
+    try expect(!syncText.contains(secret), "Session sync metadata rejects unvalidated values")
+  }
   let before = try app.count(since: 86400)
   app.navigation(id: "a secret instead of a UUID", source: "notification", outcome: "session", reason: "")
   app.navigation(id: message, source: "untrusted source", outcome: "session", reason: "")

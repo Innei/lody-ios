@@ -39,6 +39,20 @@ export const SessionSubscriptionsEvent = z
   })
   .meta({ id: 'SessionSubscriptionsEvent' });
 
+export const SessionTraceEvent = z
+  .object({
+    sessionId: z.string().min(1),
+    event: z.enum(['retry', 'slow', 'stalled', 'status', 'resume']),
+    stage: z.enum(['bootstrap', 'catchup', 'poll']).optional(),
+    status: z.string().optional(),
+    code: z.string().optional(),
+    ageMs: z.number().optional(),
+    attempts: z.number().optional(),
+  })
+  .meta({ id: 'SessionTraceEvent' });
+
+export type SessionTrace = z.input<typeof SessionTraceEvent>;
+
 export type SessionRuntimeEvent =
   | ({ type: 'session' } & z.input<typeof SessionEvent>)
   | ({ type: 'sessionCache' } & z.input<typeof SessionCacheEvent>)

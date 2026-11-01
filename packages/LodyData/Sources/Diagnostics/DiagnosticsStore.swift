@@ -232,10 +232,17 @@ public final class DiagnosticsStore: @unchecked Sendable {
     return records.sorted { $0.at < $1.at }
   }
 
+  public static func syncCode(_ value: String) -> String? {
+    let bytes = Array(value.utf8)
+    guard (1...48).contains(bytes.count), (97...122).contains(bytes[0]),
+          bytes.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }) else { return nil }
+    return value
+  }
+
   private static func metadata(_ fields: [String: String]) -> [String: String] {
     fields.filter { key, value in
       switch key {
-      case "activity", "native":
+      case "activity", "native", "session":
         return value.count == 16 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
       case "message", "attempt", "oneSignalApp": return UUID(uuidString: value) != nil
       case "stage":
@@ -243,13 +250,19 @@ public final class DiagnosticsStore: @unchecked Sendable {
       case "httpStatus": return Int(value).map { (100...599).contains($0) } ?? false
       case "networkCode": return Int(value) != nil
       case "serverCode": return Self.attachmentServerCode(value) == value
-      case "hasToken", "enabled", "identified", "authorized", "current", "configured", "registered", "accepted":
+      case "hasToken", "enabled", "identified", "authorized", "current", "configured", "registered", "accepted",
+           "hasView", "contractReady", "handshakeDeferred":
         return value == "true" || value == "false"
-      case "active", "unread", "serverUpdatedAt", "staleDate", "appState", "observed", "activities", "code", "count", "sessions", "link":
+      case "active", "unread", "serverUpdatedAt", "staleDate", "appState", "observed", "activities", "code", "count", "sessions", "link",
+           "ageMs", "attempts", "generation":
         return value.count <= 32 && Double(value)?.isFinite == true
       case "build": return value.count <= 32 && value.utf8.allSatisfy { (48...57).contains($0) || $0 == 46 }
       case "source": return ["current", "stream", "notification", "deep-link", "local"].contains(value)
       case "state": return ["active", "stale", "ended", "dismissed"].contains(value)
+      case "readStage": return ["bootstrap", "catchup", "poll"].contains(value)
+      case "syncStatus", "runtimePhase":
+        return ["starting", "syncing", "live", "offline", "background", "failed", "stopped"].contains(value)
+      case "syncCode", "runtimeReason": return Self.syncCode(value) == value
       case "permission": return ["notDetermined", "denied", "authorized", "provisional", "ephemeral"].contains(value)
       case "reason":
         return ["start", "background", "foreground", "catalog_inactive", "create_cancelled", "toggle_off",

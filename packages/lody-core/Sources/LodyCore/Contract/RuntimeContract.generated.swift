@@ -5253,6 +5253,59 @@ extension RuntimeContract {
     }
   }
 
+  public enum SessionTraceEventEvent: String, Codable, Sendable, Equatable, CaseIterable {
+    case retry = "retry"
+    case slow = "slow"
+    case stalled = "stalled"
+    case status = "status"
+    case resume = "resume"
+  }
+
+  public enum SessionTraceEventStage: String, Codable, Sendable, Equatable, CaseIterable {
+    case bootstrap = "bootstrap"
+    case catchup = "catchup"
+    case poll = "poll"
+  }
+
+  public struct SessionTraceEvent: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var event: SessionTraceEventEvent
+    public var stage: SessionTraceEventStage?
+    public var status: String?
+    public var code: String?
+    public var ageMs: Double?
+    public var attempts: Double?
+    public init(sessionId: String, event: SessionTraceEventEvent, stage: SessionTraceEventStage? = nil, status: String? = nil, code: String? = nil, ageMs: Double? = nil, attempts: Double? = nil) {
+      self.sessionId = sessionId
+      self.event = event
+      self.stage = stage
+      self.status = status
+      self.code = code
+      self.ageMs = ageMs
+      self.attempts = attempts
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.event = try c.decode(SessionTraceEventEvent.self, forKey: Key("event"))
+      self.stage = try c.decodeIfPresent(SessionTraceEventStage.self, forKey: Key("stage"))
+      self.status = try c.decodeIfPresent(String.self, forKey: Key("status"))
+      self.code = try c.decodeIfPresent(String.self, forKey: Key("code"))
+      self.ageMs = try c.decodeIfPresent(Double.self, forKey: Key("ageMs"))
+      self.attempts = try c.decodeIfPresent(Double.self, forKey: Key("attempts"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.event, forKey: Key("event"))
+      try c.encodeIfPresent(self.stage, forKey: Key("stage"))
+      try c.encodeIfPresent(self.status, forKey: Key("status"))
+      try c.encodeIfPresent(self.code, forKey: Key("code"))
+      try c.encodeIfPresent(self.ageMs, forKey: Key("ageMs"))
+      try c.encodeIfPresent(self.attempts, forKey: Key("attempts"))
+    }
+  }
+
   public struct SetActiveParams: Codable, Sendable, Equatable {
     public var active: Bool
     public init(active: Bool) {
@@ -7052,6 +7105,7 @@ extension RuntimeContract {
     case session(RuntimeContract.SessionEvent)
     case sessionCache(RuntimeContract.SessionCacheEvent)
     case sessionSubscriptions(RuntimeContract.SessionSubscriptionsEvent)
+    case sessionTrace(RuntimeContract.SessionTraceEvent)
     case shareProgress(RuntimeContract.ShareProgressEvent)
     case synced(RuntimeContract.SyncedEvent)
     case syncError(RuntimeContract.SyncErrorEvent)
@@ -7137,6 +7191,7 @@ extension RuntimeContract {
         case "session": message = .event(.session(try c.decode(RuntimeContract.SessionEvent.self, forKey: Key("payload"))))
         case "sessionCache": message = .event(.sessionCache(try c.decode(RuntimeContract.SessionCacheEvent.self, forKey: Key("payload"))))
         case "sessionSubscriptions": message = .event(.sessionSubscriptions(try c.decode(RuntimeContract.SessionSubscriptionsEvent.self, forKey: Key("payload"))))
+        case "sessionTrace": message = .event(.sessionTrace(try c.decode(RuntimeContract.SessionTraceEvent.self, forKey: Key("payload"))))
         case "shareProgress": message = .event(.shareProgress(try c.decode(RuntimeContract.ShareProgressEvent.self, forKey: Key("payload"))))
         case "synced": message = .event(.synced(try c.decode(RuntimeContract.SyncedEvent.self, forKey: Key("payload"))))
         case "syncError": message = .event(.syncError(try c.decode(RuntimeContract.SyncErrorEvent.self, forKey: Key("payload"))))

@@ -85,6 +85,7 @@ public final class SessionFeed {
   private var received = false
   private var unwatch: (@MainActor () -> Void)?
   private var token = 0
+  private var reportedStatus = ""
   private static let parsing = DispatchQueue(label: "app.innei.lody.session-feed", qos: .userInitiated)
 
   public init(sessionId: String, userId: String, workspaceId: String, service: SessionFeedService = .live) {
@@ -149,6 +150,7 @@ public final class SessionFeed {
             self.state.status = phase
             self.changed?()
           }
+          self.reportStatus()
         }
       }
     }
@@ -178,6 +180,16 @@ public final class SessionFeed {
       state.status = envelope.status
     }
     changed?()
+  }
+}
+
+extension SessionFeed {
+  private func reportStatus() {
+    guard state.status != reportedStatus else { return }
+    reportedStatus = state.status
+    DiagnosticsStore.shared.record("session-sync", "feed_status", fields: [
+      "session": DiagnosticsStore.correlation(sessionId), "syncStatus": state.status,
+    ])
   }
 }
 

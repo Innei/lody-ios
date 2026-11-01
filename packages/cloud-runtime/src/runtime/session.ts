@@ -12,6 +12,7 @@ import type {
   EditSessionResult,
   SendTurnResult,
   SessionRuntimeEvent,
+  SessionTrace,
 } from '../contract/methods.ts';
 import {
   editableUserTurn,
@@ -64,7 +65,16 @@ type SessionState = {
   ) => Promise<void>;
   emit: (event: SessionRuntimeEvent) => void;
   liveWaiters?: Array<(error?: Error) => void>;
+  read?: { stage: ReadStage; startedAt: number; stalled?: boolean };
+  readFailures: number;
 };
+type ReadStage = 'bootstrap' | 'catchup' | 'poll';
+const readLimit: Record<ReadStage, number> = {
+  bootstrap: 15_000,
+  catchup: 15_000,
+  poll: 35_000,
+};
+const stallGrace = 15_000;
 let active: SessionState | undefined;
 // Working sessions use visit order; idle visits never enter the background LRU.
 const sessions = new Map<string, SessionState>();
@@ -72,6 +82,75 @@ const reserved = new Set<string>();
 export const retainedSessionIds = () => [...sessions.keys()];
 export const reservedSessionIds = () => [...reserved];
 export const sessionDoc = (id: string) => sessions.get(id)?.doc;
+function traceCode(value: unknown) {
+  const pattern = /^[a-z][a-z0-9_]{0,47}$/;
+  if (typeof value === 'string') return pattern.test(value) ? value : undefined;
+  if (!(value instanceof Error)) return undefined;
+  if (pattern.test(value.message)) return value.message;
+  return value.name
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .slice(0, 48);
+}
+let traceSink: (event: SessionTrace) => void = () => {};
+export function setSessionTraceSink(sink: typeof traceSink) {
+  traceSink = sink;
+}
+function trace(
+  state: SessionState,
+  event: SessionTrace['event'],
+  fields: Omit<SessionTrace, 'sessionId' | 'event'> = {},
+) {
+  traceSink({ sessionId: state.id, event, ...fields });
+}
+async function readAttempt<T>(
+  state: SessionState,
+  stage: ReadStage,
+  read: () => Promise<T>,
+) {
+  const attempt = { stage, startedAt: Date.now() };
+  state.read = attempt;
+  try {
+    const result = await read();
+    const ageMs = Date.now() - attempt.startedAt;
+    if (ageMs > readLimit[stage] + stallGrace)
+      trace(state, 'slow', { stage, ageMs, attempts: state.readFailures + 1 });
+    state.readFailures = 0;
+    return result;
+  } catch (error) {
+    if (!state.controller.signal.aborted) {
+      state.readFailures += 1;
+      trace(state, 'retry', {
+        stage,
+        code: traceCode(error),
+        ageMs: Date.now() - attempt.startedAt,
+        attempts: state.readFailures,
+      });
+    }
+    throw error;
+  } finally {
+    if (state.read === attempt) state.read = undefined;
+  }
+}
+export function traceStalledReads(now = Date.now()) {
+  for (const state of sessions.values()) {
+    const read = state.read;
+    if (!read || read.stalled) continue;
+    const ageMs = now - read.startedAt;
+    if (ageMs < readLimit[read.stage] + stallGrace) continue;
+    read.stalled = true;
+    trace(state, 'stalled', { stage: read.stage, ageMs, status: state.status });
+  }
+}
+export function traceSessionResume() {
+  const state = active;
+  if (!state) return;
+  const read = state.read;
+  trace(state, 'resume', {
+    status: state.status,
+    ...(read ? { stage: read.stage, ageMs: Date.now() - read.startedAt } : {}),
+  });
+}
 function signalOf(state: SessionState, status: string) {
   const history = state.doc.getList('history');
   let finished = 0;
@@ -154,6 +233,8 @@ function isWorking(state: SessionState) {
   return false;
 }
 function scheduleEmit(state: SessionState, status: string, reason?: string) {
+  if (status !== state.status && sessions.get(state.id) === state)
+    trace(state, 'status', { status, code: traceCode(reason) });
   state.status = status;
   state.reason = reason;
   if (sessions.get(state.id) !== state) return;
@@ -369,6 +450,7 @@ export async function openSession(
     getGrant,
     markDispatch,
     emit,
+    readFailures: 0,
   };
   if (activate) active = state;
   sessions.set(id, state);
@@ -385,15 +467,16 @@ export async function openSession(
     try {
       const data = await retrySessionRead(
         controller.signal,
-        async () => {
-          state.client = await clientFor(`${workspace}:s:${id}`, getGrant);
-          controller.signal.throwIfAborted();
-          const initial = await state.client.bootstrap({
-            signal: controller.signal,
-          });
-          if (!initial.ok) throw new Error(initial.result.code);
-          return initial.result;
-        },
+        () =>
+          readAttempt(state, 'bootstrap', async () => {
+            state.client = await clientFor(`${workspace}:s:${id}`, getGrant);
+            controller.signal.throwIfAborted();
+            const initial = await state.client.bootstrap({
+              signal: controller.signal,
+            });
+            if (!initial.ok) throw new Error(initial.result.code);
+            return initial.result;
+          }),
         retrying,
       );
       if (sessions.get(id) !== state) return;
@@ -425,16 +508,17 @@ export async function openSession(
         }
         const next = await retrySessionRead(
           controller.signal,
-          async () => {
-            const result = await state.client.readOnce({
-              offset,
-              cursor,
-              signal: controller.signal,
-              ...(upToDate ? { live: 'long-poll' as const } : {}),
-            });
-            if (!result.ok) throw new Error(result.result.code);
-            return result;
-          },
+          () =>
+            readAttempt(state, upToDate ? 'poll' : 'catchup', async () => {
+              const result = await state.client.readOnce({
+                offset,
+                cursor,
+                signal: controller.signal,
+                ...(upToDate ? { live: 'long-poll' as const } : {}),
+              });
+              if (!result.ok) throw new Error(result.result.code);
+              return result;
+            }),
           retrying,
         );
         if (sessions.get(id) !== state) return;

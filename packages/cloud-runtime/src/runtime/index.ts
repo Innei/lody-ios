@@ -4,7 +4,11 @@ import { decompress } from 'fzstd';
 import type { Project } from '../models/catalog.ts';
 import { keepRepos, projectRows } from '../protocol/catalog.ts';
 import { mergeAgentQuotas } from '../protocol/agent-usage.ts';
-import { reservedSessionIds, retainedSessionIds } from './session';
+import {
+  reservedSessionIds,
+  retainedSessionIds,
+  setSessionTraceSink,
+} from './session';
 import { machineRpc } from './machine-rpc';
 import { decodeFrames, encodeFrame } from '../frames';
 import { watchMachinePresence } from './machine-presence';
@@ -36,6 +40,7 @@ const channel = createChannel(
       }),
   },
 );
+setSessionTraceSink((event) => channel.emit('sessionTrace', event));
 function emitSession(event: SessionRuntimeEvent) {
   if (event.type === 'session') {
     const { type, ...payload } = event;

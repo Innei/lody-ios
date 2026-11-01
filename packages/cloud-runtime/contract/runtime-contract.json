@@ -209,6 +209,7 @@
     "session": "SessionEvent",
     "sessionCache": "SessionCacheEvent",
     "sessionSubscriptions": "SessionSubscriptionsEvent",
+    "sessionTrace": "SessionTraceEvent",
     "shareProgress": "ShareProgressEvent",
     "synced": "SyncedEvent",
     "syncError": "SyncErrorEvent"
@@ -2613,6 +2614,22 @@
         }
       },
       "required": ["ids", "reserved"]
+    },
+    "SessionTraceEvent": {
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "minLength": 1 },
+        "event": {
+          "type": "string",
+          "enum": ["retry", "slow", "stalled", "status", "resume"]
+        },
+        "stage": { "type": "string", "enum": ["bootstrap", "catchup", "poll"] },
+        "status": { "type": "string" },
+        "code": { "type": "string" },
+        "ageMs": { "type": "number" },
+        "attempts": { "type": "number" }
+      },
+      "required": ["sessionId", "event"]
     },
     "SetActiveParams": {
       "type": "object",
