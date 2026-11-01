@@ -15,8 +15,7 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   private let filter = NSPopUpButton()
   private let table = MacPaletteTable()
   private let scroll = NSScrollView()
-  private let primary = NSButton()
-  private let actions = NSButton()
+  private let primary = MacKeycapButton(title: "", key: .returnKey)
   private let empty = NSStackView()
   private let emptyTitle = NSTextField(labelWithString: "")
   private var rows: [(heading: String, item: MacPaletteModel.Item?)] = []
@@ -92,29 +91,11 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
     header.spacing = 12
     header.alignment = .centerY
     header.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-    let close = button(mode == .search ? String(localized: "mac.palette.modeSearch", bundle: .lodyMac) : String(localized: "mac.palette.modeProjects", bundle: .lodyMac), #selector(cancel), "palette-close")
-    close.title += "   ⎋"
-    close.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
-    close.symbolConfiguration = .init(pointSize: 14, weight: .regular)
-    close.imagePosition = .imageLeading
+    let close = MacKeycapButton(title: mode == .search ? String(localized: "mac.palette.modeSearch", bundle: .lodyMac) : String(localized: "mac.palette.modeProjects", bundle: .lodyMac), key: .escape)
+    configure(close, #selector(cancel), "palette-close")
     close.setAccessibilityLabel(String(localized: "mac.palette.close", bundle: .lodyMac))
     configure(primary, #selector(confirm), "palette-primary")
-    primary.image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
-      NSColor.labelColor.withAlphaComponent(0.3).setStroke()
-      let cap = NSBezierPath(roundedRect: NSRect(x: 4.5, y: 0.5, width: 17, height: 17), xRadius: 4, yRadius: 4)
-      cap.lineWidth = 1
-      cap.stroke()
-      let symbol = NSImage(systemSymbolName: "return", accessibilityDescription: nil)?
-        .withSymbolConfiguration(.init(pointSize: 10, weight: .regular))
-      symbol?.draw(in: NSRect(x: 7, y: 4, width: 12, height: 10))
-      return true
-    }
-    primary.image?.isTemplate = true
-    primary.imagePosition = .imageTrailing
-    primary.imageHugsTitle = true
-    configure(actions, #selector(showActions), "palette-actions")
-    actions.title = String(localized: "mac.palette.actions", bundle: .lodyMac)
-    let footer = NSStackView(views: [capsule([close]), NSView(), capsule([primary, actions])])
+    let footer = NSStackView(views: [capsule([close]), NSView(), capsule([primary])])
     footer.distribution = .fill
     footer.alignment = .centerY
     footer.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 8, right: 8)
@@ -211,13 +192,9 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
 
   private func updatePrimary() {
     primary.isEnabled = selected != nil
-    actions.isEnabled = selected != nil
     let title = selected.map(primaryTitle) ?? String(localized: "mac.palette.open", bundle: .lodyMac)
+    primary.title = title
     primary.setAccessibilityLabel(title)
-    primary.attributedTitle = NSAttributedString(string: title, attributes: [
-      .font: NSFont.preferredFont(forTextStyle: .body),
-      .foregroundColor: selected == nil ? NSColor.disabledControlTextColor : NSColor.labelColor,
-    ])
   }
 
   private func primaryTitle(_ item: MacPaletteModel.Item) -> String {
@@ -255,48 +232,6 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   @objc private func clearSearch() { search.stringValue = ""; reload(); focusSearch() }
   @objc private func cancel() { onClose?() }
   @objc private func confirm() { if let selected { onPick?(selected.destination) } }
-
-  @objc func showActions() {
-    guard let menu = actionsMenu() else { return }
-    menu.popUp(positioning: nil, at: NSPoint(x: actions.bounds.maxX, y: actions.bounds.maxY), in: actions)
-  }
-
-  func actionsMenu() -> NSMenu? {
-    guard let selected else { return nil }
-    let menu = NSMenu()
-    let open = NSMenuItem(title: primaryTitle(selected), action: #selector(pickAction(_:)), keyEquivalent: "\r")
-    open.target = self
-    open.representedObject = selected.destination
-    menu.addItem(open)
-    switch selected.destination {
-    case .chat(let id):
-      if let session = state.catalog.session(id) {
-        let item = NSMenuItem(title: String(localized: "mac.palette.newInProject", bundle: .lodyMac), action: #selector(pickAction(_:)), keyEquivalent: "")
-        item.target = self
-        item.representedObject = MacPaletteModel.Destination.project(session.projectId.isEmpty ? nil : session.projectId)
-        menu.addItem(item)
-      }
-    case .manageProjects: break
-    default:
-      let item = NSMenuItem(title: String(localized: "mac.sidebar.manageProjects", bundle: .lodyMac), action: #selector(manageProjects), keyEquivalent: "")
-      item.target = self
-      menu.addItem(item)
-    }
-    return menu
-  }
-
-  @objc private func pickAction(_ item: NSMenuItem) {
-    guard let destination = item.representedObject as? MacPaletteModel.Destination else { return }
-    switch destination {
-    case .chat(let id):
-      guard let session = state.catalog.session(id), !session.archived, session.parentSessionId == nil else { return }
-    case .project(let id):
-      if let id, !state.catalog.projects.contains(where: { $0.id == id }) { return }
-    case .newChat, .manageProjects: break
-    }
-    onPick?(destination)
-  }
-  @objc private func manageProjects() { onPick?(.manageProjects) }
 
   private func move(_ step: Int) {
     let selectable = rows.indices.filter { rows[$0].item != nil }

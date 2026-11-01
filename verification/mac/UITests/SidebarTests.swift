@@ -1,7 +1,7 @@
 import XCTest
 
 final class EntryFlowTests: LodyMacUITestCase {
-  func testSearchScopesActionsAndDismissalKeepTheUnderlyingConversation() {
+  func testSearchScopesAndDismissalKeepTheUnderlyingConversation() {
     for appearance in ["light", "dark"] {
       open("sidebar", appearance)
       let original = scene.title
@@ -19,13 +19,15 @@ final class EntryFlowTests: LodyMacUITestCase {
       choose("Chats", in: panel.popUpButtons["palette-filter"])
       field.typeKey(.downArrow, modifierFlags: [])
       attach("entry-search-results-\(appearance)")
-      app.typeKey("k", modifierFlags: .command)
-      XCTAssertTrue(app.menuItems["Open chat"].waitForExistence(timeout: 3))
-      attach("entry-search-actions-\(appearance)")
-      app.typeKey(.escape, modifierFlags: [])
-      XCTAssertTrue(panel.exists, "Escape dismisses the native Actions menu before its palette")
+      XCTAssertFalse(panel.buttons["palette-actions"].exists)
       field.typeKey(.return, modifierFlags: [])
       eventually("Return opens only the selected conversation") { !panel.exists && scene.title.hasPrefix("Catalog · Review transcript projection") }
+
+      app.typeKey("f", modifierFlags: .command)
+      XCTAssertTrue(field.waitForExistence(timeout: 3))
+      app.typeKey("k", modifierFlags: .command)
+      app.typeKey(.escape, modifierFlags: [])
+      eventually("a single Escape closes search; the removed Actions menu cannot intercept it") { !panel.exists }
 
       app.typeKey("f", modifierFlags: .command)
       XCTAssertTrue(field.waitForExistence(timeout: 3))
@@ -62,6 +64,7 @@ final class EntryFlowTests: LodyMacUITestCase {
       field.typeText("no matching project")
       eventually("project search has its own empty state") { panel.buttons["palette-clear"].exists }
       attach("entry-project-empty-\(appearance)")
+      attach("entry-project-empty-panel-\(appearance)", panel)
       panel.buttons["palette-back"].click()
       XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
       XCTAssertEqual(value(scene.popUpButtons["composer-project"]), "lody-ios")

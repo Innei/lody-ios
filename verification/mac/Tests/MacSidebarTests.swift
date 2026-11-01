@@ -5,6 +5,61 @@ import LodyData
 @testable import LodyMacApp
 
 @MainActor
+final class MacKeycapTests: XCTestCase {
+  func testKeycapButtonIsExposedAsAnAccessibleNativeButton() {
+    let button = MacKeycapButton(title: "Open", key: .returnKey)
+    button.setAccessibilityLabel("Open")
+    XCTAssertTrue(button.isAccessibilityElement())
+    XCTAssertEqual(button.accessibilityRole(), .button)
+    XCTAssertEqual(button.accessibilityLabel(), "Open")
+  }
+
+  func testButtonCaptionAndKeycapShareTheEnabledToneInBothAppearances() throws {
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+      let button = MacKeycapButton(title: "Open", key: .returnKey)
+      button.appearance = try XCTUnwrap(NSAppearance(named: name))
+      let caption = try XCTUnwrap(button.descendants(NSTextField.self).first)
+      let keycap = try XCTUnwrap(button.descendants(MacKeycapView.self).first)
+      let glyph = try XCTUnwrap(keycap.descendants(NSTextField.self).first)
+      var enabledTone: NSColor?
+      for enabled in [true, false, true] {
+        button.isEnabled = enabled
+        button.effectiveAppearance.performAsCurrentDrawingAppearance {
+          let text = caption.textColor?.usingColorSpace(.sRGB)
+          let key = glyph.textColor?.usingColorSpace(.sRGB)
+          XCTAssertEqual(text, key, "the key glyph and caption must share one state color")
+          if enabled { if let enabledTone { XCTAssertEqual(text, enabledTone) } else { enabledTone = text } }
+          else { XCTAssertNotEqual(text, enabledTone, "disabling the button must visibly dim its complete label") }
+        }
+      }
+    }
+  }
+
+  func testTheKeycapClicksTheNativeButtonAndCannotDispatchWhenDisabled() throws {
+    let target = MacKeycapTestTarget()
+    let button = MacKeycapButton(title: "Open", key: .returnKey)
+    button.target = target
+    button.action = #selector(MacKeycapTestTarget.press(_:))
+    button.frame = NSRect(x: 0, y: 0, width: 140, height: 28)
+    button.layoutSubtreeIfNeeded()
+    let keycap = try XCTUnwrap(button.descendants(MacKeycapView.self).first)
+    let point = keycap.convert(NSPoint(x: keycap.bounds.midX, y: keycap.bounds.midY), to: button)
+    XCTAssertTrue(button.hitTest(point) === button, "the visible keycap belongs to the button's native hit area")
+    button.performClick(nil)
+    XCTAssertEqual(target.presses, 1)
+    button.isEnabled = false
+    button.performClick(nil)
+    XCTAssertEqual(target.presses, 1)
+  }
+}
+
+@MainActor
+private final class MacKeycapTestTarget: NSObject {
+  var presses = 0
+  @objc func press(_ sender: Any?) { presses += 1 }
+}
+
+@MainActor
 final class MacNewChatFlowTests: XCTestCase {
   private func host() -> (MacWorkspaceController, NSWindow) {
     let workspace = MacWorkspaceController(environment: MacFixtures.environment)
@@ -209,25 +264,6 @@ final class MacPaletteModelTests: XCTestCase {
                    "the visible scope and actual result filter must agree")
   }
 
-  func testActionsNeverSubstituteAnotherResultAfterTheOriginalDisappears() throws {
-    for mode: MacPaletteModel.Mode in [.search, .projects] {
-      var state = MacFixtures.listState
-      let controller = MacPaletteController(state: state, mode: mode)
-      let field = try XCTUnwrap(controller.view.descendants(NSSearchField.self).first)
-      field.stringValue = mode == .search ? "Review" : "lody-ios"
-      field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
-      let menu = try XCTUnwrap(controller.actionsMenu())
-      var picked: [MacPaletteModel.Destination] = []
-      controller.onPick = { picked.append($0) }
-      if mode == .search { state.catalog.sessions.removeAll { $0.id == "s-review" } }
-      else { state.catalog.projects.removeAll { $0.id == "p-ios" } }
-      field.stringValue = ""
-      controller.update(state)
-      menu.performActionForItem(at: 0)
-      XCTAssertTrue(picked.isEmpty, "an old menu cannot execute the new first result")
-    }
-  }
-
   func testChatSearchMatchesBranchesAndExcludesArchivedAndChildSessions() {
     var state = MacFixtures.listState
     state.catalog.sessions.append(SessionItem(id: "child", title: "mac-client child", projectId: "p-ios", parentSessionId: "s-mac"))
@@ -253,6 +289,20 @@ final class MacPaletteModelTests: XCTestCase {
 
 @MainActor
 final class MacSidebarChromeTests: XCTestCase {
+  func testPaletteFooterOffersOnlyThePrimaryAndCloseActions() throws {
+    let controller = MacPaletteController(state: MacFixtures.listState, mode: .projects)
+    var picked: [MacPaletteModel.Destination] = []
+    var closed = 0
+    controller.onPick = { picked.append($0) }
+    controller.onClose = { closed += 1 }
+    let buttons = controller.view.descendants(NSButton.self)
+    XCTAssertNil(buttons.first { $0.accessibilityIdentifier() == "palette-actions" })
+    try XCTUnwrap(buttons.first { $0.accessibilityIdentifier() == "palette-primary" }).performClick(nil)
+    XCTAssertEqual(picked, [.project("p-ios")])
+    try XCTUnwrap(buttons.first { $0.accessibilityIdentifier() == "palette-close" }).performClick(nil)
+    XCTAssertEqual(closed, 1)
+  }
+
   func testThePaletteHeaderClearButtonRestoresResultsAndKeepsSearchOpen() throws {
     let (sidebar, window) = host()
     defer { window.close() }

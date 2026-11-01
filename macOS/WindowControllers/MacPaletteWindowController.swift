@@ -70,18 +70,11 @@ final class MacPaletteWindowController: NSWindowController, NSWindowDelegate {
     parentWindow.addChildWindow(window, ordered: .above)
     window.makeKeyAndOrderFront(nil)
     content.focusSearch()
-    monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
-      let consumed = MainActor.assumeIsolated {
-        guard let self else { return false }
-        if event.type == .keyDown, event.window === self.window,
-          event.modifierFlags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "k" {
-          self.content.showActions()
-          return true
-        }
-        if event.type != .keyDown, event.window === self.parentWindow { self.dismiss() }
-        return false
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+      MainActor.assumeIsolated {
+        if let self, event.window === self.parentWindow { self.dismiss() }
       }
-      return consumed ? nil : event
+      return event
     }
   }
 
