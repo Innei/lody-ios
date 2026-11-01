@@ -212,6 +212,7 @@ test('persistent runtime applies live increments to the existing replica and adv
         'pinSession',
         'markSessionRead',
         'renameSession',
+        'sessionQueue',
         'respondPermission',
         'controlTurn',
         'checkTurnQuota',

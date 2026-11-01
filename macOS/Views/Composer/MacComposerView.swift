@@ -14,12 +14,14 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let send = NSButton()
   let stop = NSButton()
   let queue = NSButton()
+  let changes = NSButton()
   let notice = NSTextField(labelWithString: "")
   let attach = NSButton()
   let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
   var onStop: (() -> Void)?
   var onQueue: (() -> Void)?
+  var onChanges: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private static let contextControlSize: CGFloat = 32
   private static let contextOverlap: CGFloat = 12
@@ -152,7 +154,15 @@ final class MacComposerView: NSView, MacFileDropTarget {
     queue.target = self
     queue.action = #selector(queuePressed)
     queue.setAccessibilityIdentifier("composer-queue")
-    let controls = NSStackView(views: [attach, mode, queue, spring, modelPicker, stop, send])
+    changes.bezelStyle = .accessoryBarAction
+    changes.isBordered = false
+    changes.image = NSImage(systemSymbolName: "doc.text.magnifyingglass", accessibilityDescription: nil)
+    changes.target = self
+    changes.action = #selector(changesPressed)
+    changes.setAccessibilityIdentifier("composer-changes")
+    changes.setAccessibilityLabel(String(localized: "mac.diff.all", bundle: .lodyMac))
+    changes.toolTip = String(localized: "mac.diff.all", bundle: .lodyMac)
+    let controls = NSStackView(views: [attach, mode, queue, changes, spring, modelPicker, stop, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -275,12 +285,14 @@ final class MacComposerView: NSView, MacFileDropTarget {
     queue.isHidden = newSession || model.queueCount == 0
     queue.title = String(model.queueCount)
     queue.setAccessibilityLabel(String(localized: "mac.queue.title", bundle: .lodyMac))
+    changes.isHidden = newSession || onChanges == nil
     send.alphaValue = model.canSend ? 1 : 0.4
     needsLayout = true
   }
 
   @objc private func stopPressed() { onStop?() }
   @objc private func queuePressed() { onQueue?() }
+  @objc private func changesPressed() { onChanges?() }
 
   override func layout() {
     super.layout()

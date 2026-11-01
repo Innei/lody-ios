@@ -21,6 +21,9 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   var onSend: (() -> Void)?
   var onStop: (() -> Void)?
   var onQueue: (() -> Void)?
+  var onChanges: (() -> Void)? {
+    didSet { view1.onChanges = onChanges; render() }
+  }
   var onProjectChange: ((_ userInitiated: Bool) -> Void)?
   var onChooseProject: (() -> Void)?
   private var inheritedMachineId: String?

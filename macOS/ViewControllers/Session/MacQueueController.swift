@@ -116,25 +116,10 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
     child.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
   }
   private func button(_ key: String, _ id: String, action: @escaping () -> Void) -> NSButton {
-    let button = MacQueueButton(title: Self.text(key), action: action)
+    let button = MacActionButton(title: Self.text(key), action: action)
     button.setAccessibilityIdentifier(id)
     button.isEnabled = !model.busy
     return button
   }
   private static func text(_ key: String) -> String { String(localized: String.LocalizationValue(key), bundle: .lodyMac) }
-}
-
-@MainActor
-final class MacQueueButton: NSButton {
-  private let invoke: () -> Void
-  init(title: String, action: @escaping () -> Void) {
-    invoke = action
-    super.init(frame: .zero)
-    self.title = title
-    bezelStyle = .rounded
-    target = self
-    self.action = #selector(pressed)
-  }
-  required init?(coder: NSCoder) { nil }
-  @objc private func pressed() { invoke() }
 }

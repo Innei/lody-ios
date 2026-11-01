@@ -1,6 +1,6 @@
 import Foundation
 
-enum UnifiedPatch {
+public enum UnifiedPatch {
   struct Line: Equatable {
     var text: String
     var newline: Bool
@@ -24,7 +24,7 @@ enum UnifiedPatch {
     var lines: [(sign: String, line: Line)]
   }
 
-  static func make(path: String, old: String, new: String, context: Int = 4) -> String {
+  public static func make(path: String, old: String, new: String, context: Int = 4) -> String {
     var output = ["===================================================================", "--- " + quoted("a/" + path), "+++ " + quoted("b/" + path)]
     for hunk in hunks(runs(old: old, new: new), context: context) {
       let oldStart = hunk.oldLines == 0 ? hunk.oldStart - 1 : hunk.oldStart

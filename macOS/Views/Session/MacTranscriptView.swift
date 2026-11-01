@@ -12,6 +12,8 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   private var renderedCard: MacPermissionFlow.Card?
   private var cardVersion = 0
   var onQuestion: ((MacQuestionAction) -> Void)?
+  var onChanges: ((_ entryId: String, _ files: [MacChangedFile]) -> Void)?
+  private var changes: [String: (String, [MacChangedFile])] = [:]
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
@@ -86,6 +88,10 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     }
     let arrived = model.items.filter { ["user", "attachments"].contains($0.kind) && items[$0.id] == nil }.map(\.id)
     items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    changes = Dictionary(model.items.filter { $0.kind == "changes" }.map { item in
+      let entry = model.groups[item.id] ?? item.id
+      return (item.id, (entry, model.changedFiles[entry] ?? []))
+    }, uniquingKeysWith: { _, last in last })
     var rows = model.items.map { item in
       CKTranscriptRow(
         id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue,
@@ -136,7 +142,17 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     case .plan(_, let markdown): return MacPlanView(markdown: markdown, size: reading.textSize)
     case .activity(_, let symbol, let text, let attention, let running):
       return MacActivityLine(symbol: symbol, text: text, attention: attention, running: running)
-    case .changes(_, let text): return MacActivityLine(symbol: "plusminus", text: text, attention: false, running: false, diff: true)
+    case .changes(let id, let text):
+      let button = MacActionButton(title: text) { [weak self] in
+        guard let self, let target = changes[id] else { return }
+        onChanges?(target.0, target.1)
+      }
+      button.isBordered = false
+      button.alignment = .left
+      button.image = NSImage(systemSymbolName: "plusminus", accessibilityDescription: nil)
+      button.font = .systemFont(ofSize: 12)
+      button.setAccessibilityIdentifier("transcript-changes")
+      return button
     case .notice(_, let text):
       let label = NSTextField(wrappingLabelWithString: text)
       label.textColor = .systemRed

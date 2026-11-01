@@ -17,6 +17,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var composerWidths: [NSLayoutConstraint] = []
   private var readingObserver: NSObjectProtocol?
   private weak var queuePage: MacQueueController?
+  private weak var diffPage: MacDiffController?
   var onSteer: ((String) -> Void)?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
@@ -79,11 +80,13 @@ final class MacSessionController: NSViewController, MacSessionPane {
       NSLayoutConstraint.activate(composerWidths)
     }
     transcript.onQuestion = { [weak self] in self?.permission.question($0) }
+    transcript.onChanges = { [weak self] entry, files in self?.showChanges(entryId: entry, files: files) }
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     transcript.media = source.media
     transcript.onPreview = { [weak self] in self?.preview($0) }
     if let replies = composer as? MacComposerController {
+      if source.diffService != nil { replies.onChanges = { [weak self] in self?.showChanges() } }
       replies.onQueue = { [weak self] in self?.showQueue() }
       replies.onSend = { [weak transcript] in transcript?.noteSend() }
       transcript.onDropFiles = { [weak replies] in replies?.addFiles($0) }
@@ -131,6 +134,13 @@ final class MacSessionController: NSViewController, MacSessionPane {
     let page = MacQueueController(model: model)
     page.reconnect = source.reconnect
     queuePage = page
+    presentAsSheet(page)
+  }
+
+  private func showChanges(entryId: String? = nil, files: [MacChangedFile] = []) {
+    guard diffPage == nil, let service = source.diffService else { return }
+    let page = MacDiffController(model: MacDiffModel(sessionId: sessionId, entryId: entryId, files: files, service: service))
+    diffPage = page
     presentAsSheet(page)
   }
 
