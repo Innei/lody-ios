@@ -93,14 +93,27 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
     header.alignment = .centerY
     header.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
     let close = button(mode == .search ? String(localized: "mac.palette.modeSearch", bundle: .lodyMac) : String(localized: "mac.palette.modeProjects", bundle: .lodyMac), #selector(cancel), "palette-close")
-    close.title += "   esc"
+    close.title += "   ⎋"
     close.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
     close.symbolConfiguration = .init(pointSize: 14, weight: .regular)
     close.imagePosition = .imageLeading
     close.setAccessibilityLabel(String(localized: "mac.palette.close", bundle: .lodyMac))
     configure(primary, #selector(confirm), "palette-primary")
+    primary.image = NSImage(size: NSSize(width: 22, height: 18), flipped: false) { _ in
+      NSColor.labelColor.withAlphaComponent(0.3).setStroke()
+      let cap = NSBezierPath(roundedRect: NSRect(x: 4.5, y: 0.5, width: 17, height: 17), xRadius: 4, yRadius: 4)
+      cap.lineWidth = 1
+      cap.stroke()
+      let symbol = NSImage(systemSymbolName: "return", accessibilityDescription: nil)?
+        .withSymbolConfiguration(.init(pointSize: 10, weight: .regular))
+      symbol?.draw(in: NSRect(x: 7, y: 4, width: 12, height: 10))
+      return true
+    }
+    primary.image?.isTemplate = true
+    primary.imagePosition = .imageTrailing
+    primary.imageHugsTitle = true
     configure(actions, #selector(showActions), "palette-actions")
-    actions.title = String(localized: "mac.palette.actions", bundle: .lodyMac) + "  ⌘K"
+    actions.title = String(localized: "mac.palette.actions", bundle: .lodyMac)
     let footer = NSStackView(views: [capsule([close]), NSView(), capsule([primary, actions])])
     footer.distribution = .fill
     footer.alignment = .centerY
@@ -199,15 +212,11 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   private func updatePrimary() {
     primary.isEnabled = selected != nil
     actions.isEnabled = selected != nil
-    guard let selected else {
-      primary.title = String(localized: "mac.palette.open", bundle: .lodyMac)
-      primary.setAccessibilityLabel(primary.title)
-      return
-    }
-    let title = primaryTitle(selected)
+    let title = selected.map(primaryTitle) ?? String(localized: "mac.palette.open", bundle: .lodyMac)
     primary.setAccessibilityLabel(title)
-    primary.attributedTitle = NSAttributedString(string: title + "  ↵", attributes: [
-      .font: NSFont.preferredFont(forTextStyle: .body), .foregroundColor: NSColor.labelColor,
+    primary.attributedTitle = NSAttributedString(string: title, attributes: [
+      .font: NSFont.preferredFont(forTextStyle: .body),
+      .foregroundColor: selected == nil ? NSColor.disabledControlTextColor : NSColor.labelColor,
     ])
   }
 
