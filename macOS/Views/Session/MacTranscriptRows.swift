@@ -79,40 +79,17 @@ final class MacActivityLine: NSStackView {
 @MainActor
 final class MacPermissionCard: NSView {
   var onAnswer: ((String) -> Void)?
-  private let options: [SessionPermission.Option]
+  var onQuestion: ((MacQuestionAction) -> Void)?
+  private let stack = NSStackView()
+  private var options: [SessionPermission.Option] = []
+  private var rendered: MacPermissionFlow.Card?
+  private var question: MacQuestionView?
+  private let error = NSTextField(wrappingLabelWithString: "")
+  private var buttons: [NSButton] = []
 
   init(card: MacPermissionFlow.Card) {
-    options = card.options
     super.init(frame: .zero)
-    let permission = card.permission
     let fill = MacFillView(fill: .controlBackgroundColor, radius: 12, border: true)
-    let heading = NSTextField(labelWithString: String(localized: "mac.permission.title", bundle: .lodyMac))
-    heading.font = .systemFont(ofSize: 13, weight: .semibold)
-    let detail = NSTextField(wrappingLabelWithString: [permission.title, permission.path].compactMap { $0 }.joined(separator: "\n"))
-    detail.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-    detail.textColor = .secondaryLabelColor
-    let firstAllow = options.firstIndex { $0.kind?.hasPrefix("allow") == true }
-    let buttons = options.enumerated().map { index, option in
-      let button = NSButton(title: option.name, target: self, action: #selector(pressed(_:)))
-      button.tag = index
-      button.controlSize = .large
-      button.isEnabled = !card.busy
-      if index == firstAllow { button.bezelColor = .lodyAccent }
-      return button
-    }
-    var views: [NSView] = [heading, detail]
-    if !buttons.isEmpty {
-      let row = NSStackView(views: buttons.reversed())
-      row.spacing = 8
-      views.append(row)
-    }
-    if !card.error.isEmpty {
-      let error = NSTextField(wrappingLabelWithString: card.error)
-      error.textColor = .systemOrange
-      error.setAccessibilityIdentifier("permission-error")
-      views.append(error)
-    }
-    let stack = NSStackView(views: views)
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 8
@@ -122,19 +99,57 @@ final class MacPermissionCard: NSView {
     fill.addSubview(stack)
     addSubview(fill)
     NSLayoutConstraint.activate([
-      fill.topAnchor.constraint(equalTo: topAnchor),
-      fill.bottomAnchor.constraint(equalTo: bottomAnchor),
-      fill.leadingAnchor.constraint(equalTo: leadingAnchor),
-      fill.trailingAnchor.constraint(equalTo: trailingAnchor),
-      stack.topAnchor.constraint(equalTo: fill.topAnchor),
-      stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
-      stack.leadingAnchor.constraint(equalTo: fill.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
+      fill.topAnchor.constraint(equalTo: topAnchor), fill.bottomAnchor.constraint(equalTo: bottomAnchor),
+      fill.leadingAnchor.constraint(equalTo: leadingAnchor), fill.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.topAnchor.constraint(equalTo: fill.topAnchor), stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
+      stack.leadingAnchor.constraint(equalTo: fill.leadingAnchor), stack.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
     ])
+    error.textColor = .systemOrange
+    error.setAccessibilityIdentifier("permission-error")
     setAccessibilityIdentifier("permission-card")
+    update(card)
   }
 
   required init?(coder: NSCoder) { nil }
+
+  func update(_ card: MacPermissionFlow.Card) {
+    if rendered?.permission != card.permission || options != card.options {
+      stack.arrangedSubviews.forEach { stack.removeArrangedSubview($0); $0.removeFromSuperview() }
+      options = card.options
+      buttons = []
+      question = nil
+      if card.questions != nil {
+        let view = MacQuestionView()
+        view.onAction = { [weak self] in self?.onQuestion?($0) }
+        stack.addArrangedSubview(view)
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
+        question = view
+      } else {
+        let heading = NSTextField(labelWithString: String(localized: "mac.permission.title", bundle: .lodyMac))
+        heading.font = .systemFont(ofSize: 13, weight: .semibold)
+        let detail = NSTextField(wrappingLabelWithString: [card.permission.title, card.permission.path].compactMap { $0 }.joined(separator: "\n"))
+        detail.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        detail.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(heading)
+        stack.addArrangedSubview(detail)
+      }
+      let indices = options.indices.filter { card.questions == nil || options[$0].kind?.hasPrefix("reject") == true }
+      buttons = indices.map { index in
+        let button = NSButton(title: options[index].name, target: self, action: #selector(pressed(_:)))
+        button.tag = index
+        button.controlSize = .large
+        return button
+      }
+      if !buttons.isEmpty { stack.addArrangedSubview(NSStackView(views: buttons.reversed())) }
+      stack.addArrangedSubview(error)
+    }
+    rendered = card
+    let enabled = card.ready && !card.busy
+    buttons.forEach { $0.isEnabled = enabled }
+    if let draft = card.questions { question?.update(draft, enabled: enabled, canSubmit: options.contains { $0.kind?.hasPrefix("allow") == true }) }
+    error.stringValue = card.error
+    error.isHidden = card.error.isEmpty
+  }
 
   @objc private func pressed(_ sender: NSButton) {
     guard options.indices.contains(sender.tag) else { return }

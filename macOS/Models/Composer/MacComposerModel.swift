@@ -14,6 +14,7 @@ struct MacComposerModel {
   var replyChoice = ModelChoice()
   var attachments = MacDraftAttachments()
   var attachmentNotice = ""
+  var run = SessionControl.State()
 
   init(mode: Mode) { self.mode = mode }
 

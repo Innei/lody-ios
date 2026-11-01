@@ -13,6 +13,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private let optionsPopover = NSPopover()
   var onReplyChoice: (([String: Any]) -> Void)?
   var onSend: (() -> Void)?
+  var onStop: (() -> Void)?
   var onProjectChange: ((_ userInitiated: Bool) -> Void)?
   var onChooseProject: (() -> Void)?
   private var inheritedMachineId: String?
@@ -56,6 +57,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view = view1
     view1.input.delegate = self
     view1.onSend = { [weak self] in self?.send() }
+    view1.onStop = { [weak self] in self?.onStop?() }
     view1.onDropFiles = { [weak self] in self?.addFiles($0) }
     view1.input.onDropFiles = { [weak self] in self?.addFiles($0) }
     view1.input.onPasteAttachments = { [weak self] in self?.paste($0) ?? false }
@@ -99,6 +101,11 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     model.replyReady = ready
     model.replyCapability = capability
     if let choice { model.replyChoice = choice }
+    render()
+  }
+
+  func updateRun(_ state: SessionControl.State) {
+    model.run = state
     render()
   }
 

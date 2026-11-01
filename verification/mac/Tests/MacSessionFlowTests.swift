@@ -26,6 +26,79 @@ final class MacNotificationBaselineTests: XCTestCase {
 
 @MainActor
 final class MacPermissionFlowTests: XCTestCase {
+  func testAValidAgentQuestionRendersItsChoicesInsteadOfAnOptionsError() throws {
+    let target = SessionPermission(
+      entryId: "a", itemId: "q", requestId: "request-question", kind: "ask_user_question", title: "Choose a destination", path: nil,
+      options: [.init(optionId: "allow", name: "Continue", kind: "allow_once")],
+      questionMeta: .init(questions: [
+        .init(id: "destination", header: "Destination", question: "Where should this ship?",
+              options: [.init(label: "TestFlight", description: "Beta testers", preview: nil)],
+              multiSelect: false, allowCustomAnswer: true, isSecret: false),
+      ], allowCustomAnswer: true)
+    )
+    let flow = MacPermissionFlow(detail: { _ in nil }, respond: { _, _ in .accepted })
+    flow.show(target)
+    let card = try XCTUnwrap(flow.card)
+    XCTAssertTrue(card.error.isEmpty, "valid questions must remain answerable: \(card.error)")
+    let view = MacPermissionCard(card: card)
+    XCTAssertTrue(view.descendants(NSButton.self).contains { $0.accessibilityIdentifier() == "question-option-0" })
+  }
+
+  func testQuestionSubmissionKeepsMultiSelectAndCustomAnswersAndRequiresALiveRequest() async throws {
+    let target = SessionPermission(
+      entryId: "a", itemId: "q", requestId: "r", kind: "ask_user_question", title: "Shipping", path: nil,
+      options: [.init(optionId: "allow", name: "Continue", kind: "allow_once")],
+      questionMeta: .init(questions: [
+        .init(id: "targets", header: "Targets", question: "Where?", options: [
+          .init(label: "iOS", description: nil, preview: nil), .init(label: "Mac", description: nil, preview: nil),
+        ], multiSelect: true, allowCustomAnswer: false, isSecret: nil),
+        .init(id: "notes", header: "Notes", question: "Anything else?", options: [], multiSelect: false, allowCustomAnswer: true, isSecret: nil),
+      ], allowCustomAnswer: true)
+    )
+    var answers: [[String: RuntimeContract.JSONValue]] = []
+    let flow = MacPermissionFlow(detail: { _ in nil }, respond: { _, _ in XCTFail("questions need answers"); return .accepted }, respondQuestions: { request, option, value in
+      XCTAssertEqual(request.requestId, "r")
+      XCTAssertEqual(option, "allow")
+      answers.append(value)
+      return .accepted
+    })
+    flow.show(target)
+    flow.question(.submit)
+    XCTAssertFalse(flow.card?.busy ?? true, "incomplete answers cannot submit")
+    flow.question(.select(1))
+    flow.question(.select(0))
+    flow.question(.page(1))
+    flow.question(.text("  Beta first  "))
+    flow.show(target, ready: false)
+    flow.question(.submit)
+    XCTAssertTrue(answers.isEmpty)
+    flow.show(target, ready: true)
+    flow.question(.submit)
+    flow.question(.submit)
+    await flow.settled()
+    XCTAssertEqual(answers, [["targets": .array([.string("iOS"), .string("Mac")]), "notes": .string("Beta first")]])
+    XCTAssertNil(flow.card)
+  }
+
+  func testQuestionCardKeepsTheSameTextFieldAcrossEditsAndBusyUpdates() throws {
+    let meta = SessionPermission.Questions(questions: [
+      .init(id: "q", header: "Answer", question: "What next?", options: [], multiSelect: false, allowCustomAnswer: true, isSecret: false),
+    ], allowCustomAnswer: true)
+    let target = SessionPermission(entryId: "a", itemId: "q", requestId: "r", kind: "ask_user_question", title: "Answer", path: nil,
+                                   options: [.init(optionId: "allow", name: "Continue", kind: "allow_once")], questionMeta: meta)
+    var card = MacPermissionFlow.Card(permission: target, options: target.options ?? [], busy: false, error: "", questions: MacQuestionDraft(meta: meta))
+    let view = MacPermissionCard(card: card)
+    let original = try XCTUnwrap(view.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "question-custom" })
+    card.questions?.setText("Keep typing")
+    view.update(card)
+    card.busy = true
+    view.update(card)
+    let current = try XCTUnwrap(view.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "question-custom" })
+    XCTAssertTrue(current === original)
+    XCTAssertEqual(current.stringValue, "Keep typing")
+    XCTAssertFalse(current.isEnabled)
+  }
+
   private func permission(options: String?, kind: String = "edit", request: String = "r1") throws -> SessionPermission {
     let optionsJSON = options.map { ",\"options\":\($0)" } ?? ""
     let json = """
@@ -75,6 +148,57 @@ final class MacPermissionFlowTests: XCTestCase {
     let buttons = card.descendants(NSButton.self)
     XCTAssertFalse(buttons.isEmpty)
     XCTAssertTrue(buttons.allSatisfy { $0.keyEquivalent.isEmpty })
+  }
+}
+
+@MainActor
+final class MacRunControlTests: XCTestCase {
+  func testStopUsesTheOriginalTurnOnceAndWaitsForTheFeedToFinish() async throws {
+    var state = MacFixtures.listState
+    state.catalog.sessions[0].status = "running"
+    let session = state.catalog.sessions[0]
+    let sessions = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    var requests: [[String: Any]] = []
+    let bridge = MacReplyBridge(sessionId: session.id, sessions: sessions, controlRequest: { payload in
+      requests.append(try XCTUnwrap(JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any]))
+      return #"{"state":"stopped"}"#
+    })
+    _ = bridge.composer.view
+    var feed = SessionFeedState(status: "live")
+    feed.transcript.unfinishedTurnId = "turn-owned"
+    bridge.update(feed)
+    bridge.composer.onStop?()
+    bridge.composer.onStop?()
+    for _ in 0..<20 { await Task.yield() }
+    XCTAssertEqual(requests.count, 1)
+    XCTAssertEqual(requests.first?["sessionId"] as? String, session.id)
+    XCTAssertEqual(requests.first?["machineId"] as? String, session.machineId)
+    XCTAssertEqual(requests.first?["turnId"] as? String, "turn-owned")
+    XCTAssertTrue(bridge.composer.model.run.running)
+    XCTAssertTrue(bridge.composer.model.run.stopping, "an acknowledgement is not the final feed")
+    feed.transcript.unfinishedTurnId = nil
+    state.catalog.sessions[0].status = "idle"
+    bridge.update(feed)
+    XCTAssertFalse(bridge.composer.model.run.running)
+  }
+
+  func testAnUnfinishedLiveTurnOffersStopAndAnIdleTurnHidesIt() throws {
+    var state = MacFixtures.listState
+    state.catalog.sessions[0].status = "running"
+    let id = state.catalog.sessions[0].id
+    let sessions = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let bridge = MacReplyBridge(sessionId: id, sessions: sessions)
+    _ = bridge.composer.view
+    var feed = SessionFeedState(status: "live")
+    feed.transcript.unfinishedTurnId = "turn-active"
+    bridge.update(feed)
+    let stop = try XCTUnwrap(bridge.composer.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-stop" })
+    XCTAssertFalse(stop.isHidden)
+    XCTAssertTrue(stop.isEnabled)
+    state.catalog.sessions[0].status = "idle"
+    feed.transcript.unfinishedTurnId = nil
+    bridge.update(feed)
+    XCTAssertTrue(stop.isHidden)
   }
 }
 

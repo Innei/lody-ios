@@ -9,6 +9,7 @@ final class MacReplyBridge {
   private let sessions: MacSessionsSource
   private let sender: SessionSender
   private let choices: SessionComposerModel
+  private let control: SessionControl
   private var feed = SessionFeedState()
   private var pending = ""
   private var observer: NSObjectProtocol?
@@ -16,9 +17,10 @@ final class MacReplyBridge {
 
   var pendingJSON: String { sender.pendingSendJSON }
 
-  init(sessionId: String, sessions: MacSessionsSource) {
+  init(sessionId: String, sessions: MacSessionsSource, controlRequest: @escaping SessionControl.Request = SessionControl.live) {
     self.sessionId = sessionId
     self.sessions = sessions
+    control = SessionControl(request: controlRequest)
     let state = sessions.read()
     let sender = SessionSender(
       sessionId: sessionId, store: OutboxSession.shared.outboxStore(user: state.userId, workspace: state.workspaceId),
@@ -40,6 +42,8 @@ final class MacReplyBridge {
     sender.restoreDraft = { [weak composer] _ in composer?.restoreDraft() }
     sender.clearDraft = { [weak composer] _ in composer?.clearDraft() }
     choices.changed = { [weak self] in self?.refresh() }
+    control.changed = { [weak self] in self?.refresh() }
+    composer.onStop = { [weak self] in self?.controlTurn("stop") }
     observer = NotificationCenter.default.addObserver(forName: .lodyCatalogDidChange, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated { self?.refresh() }
     }
@@ -50,6 +54,12 @@ final class MacReplyBridge {
   }
 
   func retry() { sender.retry() }
+
+  func controlTurn(_ action: String, messageId: String? = nil) {
+    guard let session = sessions.read().catalog.session(sessionId) else { return }
+    control.act(action, messageId: messageId, session: session, transcript: feed.transcript,
+                live: feed.status == "live", overflow: feed.overflow, steerable: choices.steerable)
+  }
 
   func setStreaming(_ on: Bool) {
     if on { OutboxSession.shared.setForeground(sessionId) } else { OutboxSession.shared.leaveForeground(sessionId) }
@@ -75,6 +85,7 @@ final class MacReplyBridge {
     if sender.inputs != inputs { sender.update(inputs) }
     composer.replyContext = (project?.name ?? "", session.branchName ?? "", state.catalog.machineNames[session.machineId] ?? "")
     composer.updateReply(ready: sender.canSend, capability: choices.capability, choice: choices.active)
+    composer.updateRun(control.state(session: session, transcript: feed.transcript, live: live, overflow: feed.overflow, steerable: choices.steerable))
     let next = sender.pendingSendJSON
     if next != pending {
       pending = next

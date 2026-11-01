@@ -31,7 +31,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     self.sessionId = sessionId
     self.source = source
     self.composer = composer
-    permission = MacPermissionFlow(detail: source.detail, respond: source.respond)
+    permission = MacPermissionFlow(detail: source.detail, respond: source.respond, respondQuestions: source.respondQuestions)
     super.init(nibName: nil, bundle: nil)
     permission.changed = { [weak self] in self?.paint() }
     readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -76,6 +76,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
       ]
       NSLayoutConstraint.activate(composerWidths)
     }
+    transcript.onQuestion = { [weak self] in self?.permission.question($0) }
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     transcript.media = source.media
@@ -118,7 +119,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private func rebuild() {
     if parsed.json != feed.entriesJSON { parsed = MacTranscriptModel.Parsed(feed.entriesJSON) }
     model = MacTranscriptModel(parsed: parsed, pendingJSON: pendingJSON())
-    permission.show(model.permission)
+    permission.show(model.permission, ready: feed.status == "live")
     paint()
   }
 

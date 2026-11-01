@@ -11,6 +11,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   private var items: [String: MacTranscriptItem] = [:]
   private var renderedCard: MacPermissionFlow.Card?
   private var cardVersion = 0
+  var onQuestion: ((MacQuestionAction) -> Void)?
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
@@ -107,7 +108,9 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
 
   private func cell(for row: CKTranscriptRow, reused: NSView?) -> NSView {
     if row.id == Self.cardID, let card = renderedCard {
-      let view = MacPermissionCard(card: card)
+      let view = (reused as? MacPermissionCard) ?? MacPermissionCard(card: card)
+      view.update(card)
+      view.onQuestion = { [weak self] in self?.onQuestion?($0) }
       view.onAnswer = { [weak self] in self?.onAnswer?($0) }
       return view
     }

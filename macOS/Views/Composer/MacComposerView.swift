@@ -12,10 +12,12 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let mode = NSPopUpButton()
   let modelPicker = NSButton()
   let send = NSButton()
+  let stop = NSButton()
   let notice = NSTextField(labelWithString: "")
   let attach = NSButton()
   let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
+  var onStop: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private static let contextControlSize: CGFloat = 32
   private static let contextOverlap: CGFloat = 12
@@ -137,7 +139,12 @@ final class MacComposerView: NSView, MacFileDropTarget {
     spring.setContentHuggingPriority(.init(1), for: .horizontal)
     spring.widthAnchor.constraint(greaterThanOrEqualToConstant: 0).isActive = true
     spring.widthAnchor.constraint(equalToConstant: 0).withPriority(.init(1)).isActive = true
-    let controls = NSStackView(views: [attach, mode, spring, modelPicker, send])
+    stop.bezelStyle = .circular
+    stop.image = NSImage(systemSymbolName: "stop.fill", accessibilityDescription: nil)
+    stop.target = self
+    stop.action = #selector(stopPressed)
+    stop.setAccessibilityIdentifier("composer-stop")
+    let controls = NSStackView(views: [attach, mode, spring, modelPicker, stop, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -184,6 +191,8 @@ final class MacComposerView: NSView, MacFileDropTarget {
       attach.heightAnchor.constraint(equalToConstant: 32),
       send.widthAnchor.constraint(equalToConstant: 32),
       send.heightAnchor.constraint(equalToConstant: 32),
+      stop.widthAnchor.constraint(equalToConstant: 32),
+      stop.heightAnchor.constraint(equalToConstant: 32),
     ])
     setAccessibilityIdentifier("composer")
     readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -250,9 +259,16 @@ final class MacComposerView: NSView, MacFileDropTarget {
     modelPicker.setAccessibilityLabel(model.modelTitle + ", " + model.effortTitle)
     modelPicker.isHidden = model.models.isEmpty
     send.isEnabled = model.canSend
+    stop.isHidden = newSession || !model.run.running
+    stop.isEnabled = model.run.canStop && !model.run.stopping
+    let stopTitle = String(localized: String.LocalizationValue(model.run.stopping ? "native.chat.composer.stopping" : "native.chat.composer.stop"), bundle: .lodyData)
+    stop.toolTip = stopTitle
+    stop.setAccessibilityLabel(stopTitle)
     send.alphaValue = model.canSend ? 1 : 0.4
     needsLayout = true
   }
+
+  @objc private func stopPressed() { onStop?() }
 
   override func layout() {
     super.layout()

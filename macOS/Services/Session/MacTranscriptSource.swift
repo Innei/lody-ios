@@ -10,6 +10,7 @@ struct MacTranscriptSource {
   var detail: MacPermissionFlow.Detail
   var respond: MacPermissionFlow.Respond
   var media: CKMediaProvider?
+  var respondQuestions: MacPermissionFlow.RespondQuestions = { _, _, _ in throw OutboxError.scopeExpired }
 
   static func live(sessionId: String, state: SessionListState, permission: PermissionService = .live) -> MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
@@ -28,7 +29,11 @@ struct MacTranscriptSource {
           requestId: target.requestId, optionId: optionId
         ))
       },
-      media: MacMediaProvider(workspace: state.workspaceId, session: sessionId)
+      media: MacMediaProvider(workspace: state.workspaceId, session: sessionId),
+      respondQuestions: { target, optionId, answers in
+        try await permission.respond(.init(sessionId: sessionId, entryId: target.entryId, itemId: target.itemId,
+                                          requestId: target.requestId, optionId: optionId, answers: answers))
+      }
     )
   }
 }
