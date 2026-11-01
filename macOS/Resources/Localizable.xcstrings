@@ -4965,6 +4965,22 @@
           }
         }
       }
+    },
+    "mac.permission.continue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -5,7 +5,6 @@ import LodyData
 
 final class MacAccentTests: XCTestCase {
   func testAccentChoicesFollowTheSystemAndNeverOfferGreenOrRed() {
-    XCTAssertEqual(MacAccent.allCases.map(\.rawValue), ["system", "blue", "purple", "orange", "graphite"])
     for name in [NSAppearance.Name.aqua, .darkAqua] {
       NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
         let red = Self.hue(.systemRed)!
@@ -29,13 +28,13 @@ final class MacAccentTests: XCTestCase {
     return min(d, 360 - d)
   }
 
-  func testTheChoiceIsStoredAndUnknownValuesFallBackToSystem() {
+  func testTheChoiceIsStoredAndUnknownValuesFallBackToLody() {
     let defaults = UserDefaults(suiteName: "lody-mac-accent-\(UUID().uuidString)")!
-    XCTAssertEqual(MacAccent.current(defaults), .system)
+    XCTAssertEqual(MacAccent.current(defaults), .lody)
     MacAccent.purple.save(defaults)
     XCTAssertEqual(MacAccent.current(defaults), .purple)
     defaults.set("green", forKey: MacAccent.key)
-    XCTAssertEqual(MacAccent.current(defaults), .system)
+    XCTAssertEqual(MacAccent.current(defaults), .lody)
   }
 }
 

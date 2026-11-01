@@ -28,7 +28,7 @@ final class DebugSceneCoordinator {
   }
 
   func reset() {
-    MacAccent.system.apply()
+    MacAccent.lody.apply()
     guard let current else { return }
     open(current)
   }

@@ -26,6 +26,28 @@ final class MacNotificationBaselineTests: XCTestCase {
 
 @MainActor
 final class MacPermissionFlowTests: XCTestCase {
+  func testApprovalsAndQuestionsReplaceTheComposerWithTheApprovedGlassSurface() throws {
+    let panes: [MacSessionPane] = [MacCoreFixture.controller() as! MacSessionController, MacFixtures.environment.pane("s-mac")]
+    for pane in panes {
+      let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 820), styleMask: [.titled], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      defer { window.close() }
+      window.contentViewController = pane
+      _ = pane.view
+      pane.setStreaming(true)
+      window.layoutIfNeeded()
+      pane.view.layoutSubtreeIfNeeded()
+      let card = try XCTUnwrap(pane.view.descendants(MacPermissionCard.self).first)
+      XCTAssertEqual(card.descendants(NSGlassEffectView.self).count, 1)
+      let transcript = try XCTUnwrap(pane.view.descendants(MacTranscriptView.self).first)
+      XCTAssertTrue(transcript.descendants(MacPermissionCard.self).isEmpty)
+      let composer = try XCTUnwrap(pane.children.compactMap { $0 as? MacComposerController }.first)
+      XCTAssertTrue(composer.view.isHidden)
+      XCTAssertEqual(card.convert(card.bounds, to: pane.view).minY, composer.view.frame.minY, accuracy: 1)
+      XCTAssertEqual(card.frame.width, composer.view.frame.width, accuracy: 1)
+    }
+  }
+
   func testAValidAgentQuestionRendersItsChoicesInsteadOfAnOptionsError() throws {
     let target = SessionPermission(
       entryId: "a", itemId: "q", requestId: "request-question", kind: "ask_user_question", title: "Choose a destination", path: nil,
@@ -180,6 +202,26 @@ final class MacRunControlTests: XCTestCase {
     state.catalog.sessions[0].status = "idle"
     bridge.update(feed)
     XCTAssertFalse(bridge.composer.model.run.running)
+  }
+
+  func testPrimaryActionUsesAnAdaptiveForegroundWithReadableContrast() throws {
+    let previous = UserDefaults.standard.object(forKey: MacAccent.key)
+    defer { UserDefaults.standard.set(previous, forKey: MacAccent.key) }
+    UserDefaults.standard.removeObject(forKey: MacAccent.key)
+    var model = MacComposerModel(mode: .reply)
+    model.replyReady = true
+    model.text = "Send"
+    let view = MacComposerView()
+    var inks: [NSColor] = []
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+      let appearance = try XCTUnwrap(NSAppearance(named: name))
+      view.appearance = appearance
+      appearance.performAsCurrentDrawingAppearance {
+        view.render(model, reply: ("", "", ""))
+        inks.append(view.send.contentTintColor!.usingColorSpace(.sRGB)!)
+      }
+    }
+    XCTAssertNotEqual(inks[0], inks[1], "the iOS default uses light ink in light mode and dark ink in dark mode")
   }
 
   func testOnePrimaryButtonSwitchesBetweenStopAndSendLikeIOS() {

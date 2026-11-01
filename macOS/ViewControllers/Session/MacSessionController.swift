@@ -10,6 +10,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private let transcript = MacTranscriptView()
   private let composer: NSViewController?
   private let permission: MacPermissionFlow
+  private var interruption: MacPermissionCard?
+  private var restoreInputFocus = false
   private var model = MacTranscriptModel(entriesJSON: "[]")
   private var parsed = MacTranscriptModel.Parsed("[]")
   private var feed = SessionFeedState()
@@ -153,6 +155,37 @@ final class MacSessionController: NSViewController, MacSessionPane {
 
   private func paint() {
     guard isViewLoaded else { return }
-    transcript.render(model, card: permission.card)
+    transcript.render(model)
+    if let card = permission.card, let composer {
+      if interruption == nil {
+        restoreInputFocus = composer.view.descendantsContain(view.window?.firstResponder as? NSView)
+        let panel = MacPermissionCard(card: card)
+        panel.onQuestion = { [weak self] in self?.permission.question($0) }
+        panel.onAnswer = { [weak self] in self?.permission.answer($0) }
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+          panel.leadingAnchor.constraint(equalTo: composer.view.leadingAnchor), panel.trailingAnchor.constraint(equalTo: composer.view.trailingAnchor),
+          panel.bottomAnchor.constraint(equalTo: composer.view.bottomAnchor),
+        ])
+        interruption = panel
+      }
+      interruption?.update(card)
+      composer.view.isHidden = true
+    } else {
+      let wasPresented = interruption != nil
+      interruption?.removeFromSuperview()
+      interruption = nil
+      composer?.view.isHidden = false
+      if wasPresented, restoreInputFocus { (composer as? MacComposerController)?.focusInput() }
+      restoreInputFocus = false
+    }
+  }
+}
+
+private extension NSView {
+  func descendantsContain(_ other: NSView?) -> Bool {
+    guard let other else { return false }
+    return other === self || other.isDescendant(of: self)
   }
 }

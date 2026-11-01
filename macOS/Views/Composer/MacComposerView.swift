@@ -286,7 +286,9 @@ final class MacComposerView: NSView, MacFileDropTarget {
     send.setAccessibilityLabel(title)
     send.toolTip = title
     let symbol = primaryStops ? "stop.fill" : "arrow.up"
-    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(paletteColors: [.white]))
+    let ink: NSColor = primaryStops ? .white : .lodyAccentForeground
+    send.contentTintColor = ink
+    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(paletteColors: [ink]))
     image?.isTemplate = false
     send.image = loading ? nil : image
     send.bezelColor = primaryStops ? .systemRed : .lodyAccent

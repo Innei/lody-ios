@@ -133,11 +133,11 @@ final class MacSnapshotTests: XCTestCase {
 
 @MainActor
 final class MacSceneResetTests: XCTestCase {
-  func testResetRestoresTheSystemAccent() {
+  func testResetRestoresTheLodyAccent() {
     let previous = MacAccent.current()
     defer { previous.save() }
     MacAccent.orange.save()
     DebugSceneCoordinator.shared.reset()
-    XCTAssertEqual(MacAccent.current(), .system)
+    XCTAssertEqual(MacAccent.current(), .lody)
   }
 }
