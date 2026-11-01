@@ -14,6 +14,8 @@ suite = "LodyMacUITests"
 timeout = 1800
 
 [test.cases]
+core-parity = "CoreParityTests"
+core-draft = "CoreDraftTests"
 sign-in = "SignInTests"
 sidebar = "SidebarTests"
 entry-flows = "EntryFlowTests"

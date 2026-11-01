@@ -31,6 +31,19 @@ enum MacVerifyActions {
           return nil
         }
       }
+      for table in views.compactMap({ $0 as? NSTableView }) where !(table is NSOutlineView) {
+        if let row = (0..<table.numberOfRows).first(where: { row in
+          (0..<table.numberOfColumns).contains { column in
+            guard let cell = table.view(atColumn: column, row: row, makeIfNecessary: true) else { return false }
+            return descendants(cell).contains { view in
+              view.accessibilityIdentifier() == text || (view as? NSTextField)?.stringValue == text
+            }
+          }
+        }) {
+          table.selectRowIndexes([row], byExtendingSelection: false)
+          return nil
+        }
+      }
       if MacAccessibilityTree.press(text, in: root) { return nil }
       return "no click target \(text)"
     case .choose(let current, let option):

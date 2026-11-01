@@ -94,3 +94,11 @@ final class MacDiffTests: XCTestCase {
     .ok(.init(base: .turn, path: path, old: .init(kind: .text, text: old), new: .init(kind: .text, text: new)))
   }
 }
+
+@MainActor
+final class MacCoreParitySceneTests: XCTestCase {
+  func testSelectedFeaturesHaveAnIndependentlyResettableOfflineScene() throws {
+    XCTAssertNotNil(DebugSceneFactory.scene("core-parity"))
+    XCTAssertNotNil(DebugSceneFactory.scene("core-draft"))
+  }
+}

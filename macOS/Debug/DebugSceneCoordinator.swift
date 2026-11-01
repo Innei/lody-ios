@@ -8,8 +8,12 @@ final class DebugSceneCoordinator {
   private(set) var current: String?
 
   var front: NSWindow? {
-    if let key = NSApp.keyWindow, windows.contains(where: { $0 === key || $0.tabbedWindows?.contains(key) == true }) { return key }
-    return windows.last { $0.isVisible }.map { $0.tabGroup?.selectedWindow ?? $0 }
+    let parent: NSWindow?
+    if let key = NSApp.keyWindow, windows.contains(where: { $0 === key || $0.tabbedWindows?.contains(key) == true }) { parent = key }
+    else { parent = windows.last { $0.isVisible }.map { $0.tabGroup?.selectedWindow ?? $0 } }
+    var front = parent
+    while let sheet = front?.attachedSheet { front = sheet }
+    return front
   }
 
   @discardableResult

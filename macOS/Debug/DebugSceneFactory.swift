@@ -31,6 +31,8 @@ enum DebugSceneFactory {
       ]
     }
     return [
+      Scene(id: "core-parity", title: "Core features", size: NSSize(width: 980, height: 820), make: { MacCoreFixture.controller() }),
+      Scene(id: "core-draft", title: "Durable drafts", size: NSSize(width: 860, height: 480), make: { MacCoreDraftController() }),
       Scene(id: "sign-in", title: "Sign in") { [signInWindow(code: nil, title: "Sign in")] },
       Scene(id: "sign-in-code", title: "Sign in · device code") { [signInWindow(code: "WXYZ-1234", title: "Sign in · device code")] },
       Scene(id: "sign-in-done", title: "Sign in · signed in") {

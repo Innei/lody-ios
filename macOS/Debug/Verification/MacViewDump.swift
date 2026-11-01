@@ -7,7 +7,7 @@ enum MacViewDump {
     let windows = NSApp.windows.filter(\.isVisible).map { window -> [String: Any] in
       var entry: [String: Any] = [
         "title": window.title,
-        "identifier": window.identifier?.rawValue ?? "",
+        "identifier": window.identifier?.rawValue ?? window.sheetParent?.identifier?.rawValue ?? "",
         "key": window.isKeyWindow,
         "appearance": window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])?.rawValue ?? "",
         "frame": frame(window.frame),
