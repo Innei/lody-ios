@@ -182,6 +182,37 @@ final class MacRunControlTests: XCTestCase {
     XCTAssertFalse(bridge.composer.model.run.running)
   }
 
+  func testOnePrimaryButtonSwitchesBetweenStopAndSendLikeIOS() {
+    var model = MacComposerModel(mode: .reply)
+    model.replyReady = true
+    model.run = .init(running: true, canStop: true)
+    let view = MacComposerView()
+    var stops = 0
+    var sends = 0
+    view.onStop = { stops += 1 }
+    view.onSend = { sends += 1 }
+    view.render(model, reply: ("", "", ""))
+    let primary = view.send
+    let visible = view.descendants(NSButton.self).filter { ["composer-send", "composer-stop"].contains($0.accessibilityIdentifier()) && !$0.isHiddenOrHasHiddenAncestor }
+    XCTAssertEqual(visible.count, 1)
+    XCTAssertEqual(primary.accessibilityIdentifier(), "composer-stop")
+    primary.performClick(nil)
+    XCTAssertEqual(stops, 1)
+    XCTAssertEqual(sends, 0)
+    model.text = "Guide the running task"
+    view.render(model, reply: ("", "", ""))
+    XCTAssertEqual(primary.accessibilityIdentifier(), "composer-send")
+    primary.performClick(nil)
+    XCTAssertEqual(sends, 1)
+    XCTAssertEqual(stops, 1)
+    model.text = ""
+    model.run.stopping = true
+    view.render(model, reply: ("", "", ""))
+    XCTAssertFalse(primary.isEnabled)
+    primary.performClick(nil)
+    XCTAssertEqual(stops, 1)
+  }
+
   func testAnUnfinishedLiveTurnOffersStopAndAnIdleTurnHidesIt() throws {
     var state = MacFixtures.listState
     state.catalog.sessions[0].status = "running"
@@ -198,7 +229,8 @@ final class MacRunControlTests: XCTestCase {
     state.catalog.sessions[0].status = "idle"
     feed.transcript.unfinishedTurnId = nil
     bridge.update(feed)
-    XCTAssertTrue(stop.isHidden)
+    XCTAssertEqual(stop.accessibilityIdentifier(), "composer-send")
+    XCTAssertFalse(stop.isEnabled)
   }
 }
 

@@ -12,7 +12,6 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let mode = NSPopUpButton()
   let modelPicker = NSButton()
   let send = NSButton()
-  let stop = NSButton()
   let queue = NSButton()
   let changes = NSButton()
   let notice = NSTextField(labelWithString: "")
@@ -37,6 +36,8 @@ final class MacComposerView: NSView, MacFileDropTarget {
   private var trayWidth: NSLayoutConstraint!
   private var trayHeightConstraint: NSLayoutConstraint!
   private var noticeWidth: NSLayoutConstraint!
+  private var primaryStops = false
+  private let progress = NSProgressIndicator()
   private var readingObserver: NSObjectProtocol?
 
   var reading = MacReading.current() {
@@ -98,7 +99,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     input.isVerticallyResizable = true
     input.autoresizingMask = [.width]
     input.textContainer?.widthTracksTextView = true
-    input.onSubmit = { [weak self] in self?.onSend?() }
+    input.onSubmit = { [weak self] in self?.sendPressed() }
     input.setAccessibilityIdentifier("composer-input")
     scroll.documentView = input
     scroll.drawsBackground = false
@@ -143,11 +144,11 @@ final class MacComposerView: NSView, MacFileDropTarget {
     spring.setContentHuggingPriority(.init(1), for: .horizontal)
     spring.widthAnchor.constraint(greaterThanOrEqualToConstant: 0).isActive = true
     spring.widthAnchor.constraint(equalToConstant: 0).withPriority(.init(1)).isActive = true
-    stop.bezelStyle = .circular
-    stop.image = NSImage(systemSymbolName: "stop.fill", accessibilityDescription: nil)
-    stop.target = self
-    stop.action = #selector(stopPressed)
-    stop.setAccessibilityIdentifier("composer-stop")
+    progress.style = .spinning
+    progress.controlSize = .small
+    progress.isDisplayedWhenStopped = false
+    progress.frame = NSRect(x: 9, y: 9, width: 14, height: 14)
+    send.addSubview(progress)
     queue.bezelStyle = .accessoryBarAction
     queue.isBordered = false
     queue.image = NSImage(systemSymbolName: "list.bullet", accessibilityDescription: nil)
@@ -162,7 +163,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     changes.setAccessibilityIdentifier("composer-changes")
     changes.setAccessibilityLabel(String(localized: "mac.diff.all", bundle: .lodyMac))
     changes.toolTip = String(localized: "mac.diff.all", bundle: .lodyMac)
-    let controls = NSStackView(views: [attach, mode, queue, changes, spring, modelPicker, stop, send])
+    let controls = NSStackView(views: [attach, mode, queue, changes, spring, modelPicker, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -209,8 +210,6 @@ final class MacComposerView: NSView, MacFileDropTarget {
       attach.heightAnchor.constraint(equalToConstant: 32),
       send.widthAnchor.constraint(equalToConstant: 32),
       send.heightAnchor.constraint(equalToConstant: 32),
-      stop.widthAnchor.constraint(equalToConstant: 32),
-      stop.heightAnchor.constraint(equalToConstant: 32),
     ])
     setAccessibilityIdentifier("composer")
     readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -276,21 +275,30 @@ final class MacComposerView: NSView, MacFileDropTarget {
     modelPicker.attributedTitle = summary
     modelPicker.setAccessibilityLabel(model.modelTitle + ", " + model.effortTitle)
     modelPicker.isHidden = model.models.isEmpty
-    send.isEnabled = model.canSend
-    stop.isHidden = newSession || !model.run.running
-    stop.isEnabled = model.run.canStop && !model.run.stopping
-    let stopTitle = String(localized: String.LocalizationValue(model.run.stopping ? "native.chat.composer.stopping" : "native.chat.composer.stop"), bundle: .lodyData)
-    stop.toolTip = stopTitle
-    stop.setAccessibilityLabel(stopTitle)
+    let hasContent = !model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.attachments.isEmpty
+    primaryStops = !newSession && model.run.running && !hasContent
+    let loading = model.run.stopping
+    send.isEnabled = (primaryStops ? model.run.canStop : model.canSend) && !loading && !model.run.controlling
+    send.setAccessibilityIdentifier(primaryStops ? "composer-stop" : "composer-send")
+    var key = primaryStops ? "native.chat.composer.stop" : "native.chat.composer.send"
+    if loading { key = "native.chat.composer.stopping" }
+    let title = String(localized: String.LocalizationValue(key), bundle: .lodyData)
+    send.setAccessibilityLabel(title)
+    send.toolTip = title
+    let symbol = primaryStops ? "stop.fill" : "arrow.up"
+    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(.init(paletteColors: [.white]))
+    image?.isTemplate = false
+    send.image = loading ? nil : image
+    send.bezelColor = primaryStops ? .systemRed : .lodyAccent
+    if loading { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     queue.isHidden = newSession || model.queueCount == 0
     queue.title = String(model.queueCount)
     queue.setAccessibilityLabel(String(localized: "mac.queue.title", bundle: .lodyMac))
     changes.isHidden = newSession || onChanges == nil
-    send.alphaValue = model.canSend ? 1 : 0.4
+    send.alphaValue = send.isEnabled || loading ? 1 : 0.4
     needsLayout = true
   }
 
-  @objc private func stopPressed() { onStop?() }
   @objc private func queuePressed() { onQueue?() }
   @objc private func changesPressed() { onChanges?() }
 
@@ -367,7 +375,10 @@ final class MacComposerView: NSView, MacFileDropTarget {
     if let selected, wanted.indices.contains(selected) { popup.selectItem(at: selected) }
   }
 
-  @objc private func sendPressed() { onSend?() }
+  @objc private func sendPressed() {
+    guard send.isEnabled else { return }
+    if primaryStops { onStop?() } else { onSend?() }
+  }
 
   override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
     Self.fileURLs(sender.draggingPasteboard).isEmpty ? [] : .copy
