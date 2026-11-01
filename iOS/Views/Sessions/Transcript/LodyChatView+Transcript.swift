@@ -121,6 +121,10 @@ extension LodyChatView {
       transcript.entries = entries
       applyRows()
       rendering = false
+      if framePending || stream.hasPending {
+        framePending = false
+        startFrameTimer()
+      }
       return
     }
     let parser = store.parser
