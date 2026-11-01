@@ -346,6 +346,73 @@ final class MacQueueTests: XCTestCase {
     XCTAssertEqual(model.items.map(\.text), ["Keep"])
   }
 
+  func testStreamingReloadKeepsTheSameQueueEditorAndItsSelection() async throws {
+    var item = RuntimeContract.SessionQueueItem(id: "q", revision: "r1", text: "Queued", attachments: [], editing: false)
+    let model = MacQueueModel(sessionId: "s", userId: "u", service: .init(request: { params in
+      if case .begin(let p) = params { item.editing = true; item.editToken = p.editToken; item.revision = "r2" }
+      return .init(state: .ready, items: [item])
+    }))
+    let page = MacQueueController(model: model)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460), styleMask: [.titled], backing: .buffered, defer: false)
+    window.contentViewController = page
+    await model.reload()
+    await model.begin(try XCTUnwrap(model.items.first))
+    let editor = try XCTUnwrap(page.view.descendants(NSTextView.self).first { $0.accessibilityIdentifier() == "queue-editor" })
+    editor.string = "Unsaved typing"
+    model.text = editor.string
+    editor.setSelectedRange(NSRange(location: 3, length: 4))
+    window.makeFirstResponder(editor)
+    await model.reload()
+    let current = try XCTUnwrap(page.view.descendants(NSTextView.self).first { $0.accessibilityIdentifier() == "queue-editor" })
+    XCTAssertTrue(current === editor)
+    XCTAssertEqual(current.string, "Unsaved typing")
+    XCTAssertEqual(current.selectedRange(), NSRange(location: 3, length: 4))
+    XCTAssertTrue(window.firstResponder === editor)
+  }
+
+  func testLostEditingOwnershipKeepsUnsavedTextButDoesNotTrapTheQueue() async throws {
+    var items = [RuntimeContract.SessionQueueItem(id: "q", revision: "r1", text: "Queued", attachments: [], editing: false)]
+    let model = MacQueueModel(sessionId: "s", userId: "u", service: .init(request: { params in
+      if case .begin(let p) = params { items[0].editing = true; items[0].editToken = p.editToken; items[0].revision = "r2" }
+      return .init(state: .ready, items: items)
+    }))
+    await model.reload()
+    await model.begin(try XCTUnwrap(model.items.first))
+    model.text = "Keep my unsaved changes"
+    items = []
+    await model.reload()
+    XCTAssertNil(model.editing, "a consumed item no longer owns an editable lease")
+    XCTAssertEqual(model.text, "Keep my unsaved changes")
+    XCTAssertFalse(model.error.isEmpty, "the user sees why their unsaved text was detached")
+  }
+
+  func testAChangedLeaseShowsCopyableUnsavedTextAndCanBeDismissed() async throws {
+    var item = RuntimeContract.SessionQueueItem(id: "q", revision: "r1", text: "Queued", attachments: [], editing: false)
+    let model = MacQueueModel(sessionId: "s", userId: "u", service: .init(request: { params in
+      if case .begin(let p) = params { item.editing = true; item.editToken = p.editToken; item.revision = "r2" }
+      return .init(state: .ready, items: [item])
+    }))
+    let page = MacQueueController(model: model)
+    _ = page.view
+    await model.reload()
+    await model.begin(try XCTUnwrap(model.items.first))
+    model.text = "Unsaved content"
+    item.editToken = "another-editor"
+    item.revision = "r3"
+    await model.reload()
+    XCTAssertNil(model.editing)
+    let unsaved = try XCTUnwrap(page.view.descendants(NSTextView.self).first { $0.accessibilityIdentifier() == "queue-unsaved" })
+    XCTAssertEqual(unsaved.string, "Unsaved content")
+    XCTAssertFalse(unsaved.isEditable)
+    XCTAssertTrue(unsaved.isSelectable)
+    let close = try XCTUnwrap(page.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "queue-close" })
+    XCTAssertTrue(close.isEnabled)
+    let discard = try XCTUnwrap(page.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "queue-discard-unsaved" })
+    discard.performClick(nil)
+    XCTAssertNil(model.conflictText)
+    XCTAssertNil(page.view.descendants(NSTextView.self).first { $0.accessibilityIdentifier() == "queue-unsaved" })
+  }
+
   func testQueuePreferenceChangesReachTheActualSendContextWithoutReopeningTheSession() {
     let state = MacFixtures.listState
     let session = state.catalog.sessions[0]
@@ -385,6 +452,33 @@ final class MacDurableDraftTests: XCTestCase {
     XCTAssertEqual(restoredInput.string, "A task for this project")
     let heading = try XCTUnwrap(restored.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "new-session-project-heading" })
     XCTAssertTrue(heading.title.contains(project.name))
+  }
+
+  func testRemovingAnAttachmentInAnotherComposerPreservesAnInFlightSend() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let original = directory.appendingPathComponent("notes.txt")
+    try Data("Keep until upload completes".utf8).write(to: original)
+    let store = MacDraftStore(root: directory.appendingPathComponent("drafts"))
+    let scope = MacDraftStore.Scope(user: "u", workspace: "w", session: "s")
+    var model = MacComposerModel(mode: .reply)
+    model.replyReady = true
+    let first = MacComposerController(model: model, service: MacComposerFixture.service)
+    first.bindDraft(scope, store: store)
+    _ = first.view
+    first.addFiles([original])
+    let file = try XCTUnwrap(first.model.attachments.items.first)
+    let second = MacComposerController(model: model, service: MacComposerFixture.service)
+    second.bindDraft(scope, store: store)
+    _ = second.view
+    let send = try XCTUnwrap(first.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-send" })
+    send.performClick(nil)
+    XCTAssertFalse(first.model.canSend)
+    second.removeAttachment(file.id)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: file.url.path), "the durable handoff still owns this file")
+    first.clearDraft()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: file.url.path), "it is reclaimed only after send acknowledgement")
   }
 
   func testAMissingRestoredAttachmentMustBeRemovedBeforeSending() throws {

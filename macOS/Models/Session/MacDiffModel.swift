@@ -92,7 +92,7 @@ final class MacDiffModel {
       switch result {
       case .unavailable: message = Self.text("mac.diff.unavailable")
       case .ok(let value):
-        guard value.path == path else { message = Self.text("mac.diff.unavailable"); return }
+        guard value.path == path, value.base == (scope == .turn ? .turn : .current) else { message = Self.text("mac.diff.unavailable"); return }
         if value.old.kind == .binary || value.new.kind == .binary { message = Self.text("mac.diff.binary"); return }
         if value.old.kind == .tooLarge || value.new.kind == .tooLarge { message = Self.text("mac.diff.large"); return }
         let old = value.old.kind == .missing ? "" : value.old.text

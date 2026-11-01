@@ -30,7 +30,7 @@ final class MacDiffTests: XCTestCase {
     var requests: [MacDiffRequest] = []
     let service = MacDiffService(diff: { request in
       requests.append(request)
-      return Self.result(request.path, old: "before\n", new: "after")
+      return .ok(.init(base: request.entryId == nil ? .current : .turn, path: request.path, old: .init(kind: .text, text: "before\n"), new: .init(kind: .text, text: "after")))
     }, changes: { id in
       XCTAssertEqual(id, "session")
       return .ok(.init(base: "main", files: [.init(path: "All.swift", add: 1, del: 1)]))
@@ -88,6 +88,18 @@ final class MacDiffTests: XCTestCase {
     XCTAssertEqual(model.selectedPath, "fast")
     XCTAssertTrue(model.patch.contains("+latest"))
     XCTAssertFalse(model.patch.contains("stale"))
+  }
+
+  func testACurrentWorkspaceFallbackIsNeverLabeledAsTheSelectedTurn() async {
+    let service = MacDiffService(diff: { request in
+      .ok(.init(base: .current, path: request.path, old: .init(kind: .text, text: "old"), new: .init(kind: .text, text: "current")))
+    }, changes: { _ in .ok(.init(base: "main", files: [.init(path: "App.swift")])) })
+    let model = MacDiffModel(sessionId: "s", entryId: "old-turn", files: [.init(path: "App.swift")], service: service)
+    await model.load()
+    XCTAssertTrue(model.patch.isEmpty, "current changes cannot be attributed to the old turn")
+    XCTAssertFalse(model.message.isEmpty)
+    await model.setScope(.session)
+    XCTAssertTrue(model.patch.contains("+current"), "the user can explicitly choose current session changes")
   }
 
   private static func result(_ path: String, old: String, new: String) -> RuntimeContract.DiffResult {

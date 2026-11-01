@@ -157,3 +157,78 @@ test('queue reorder and removal retain IDs; uncertain writes never replay', asyn
     fixture.close();
   }
 });
+
+test('a successful read cannot clear an uncertain queue write; explicit recovery bootstraps server state', async () => {
+  let fail = false;
+  const fixture = await openTestSession({ failAppend: () => fail });
+  try {
+    fixture.server
+      .getList('history')
+      .push({ id: 'running', role: 'assistant', finished: false, items: [] });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    await fixture.runtime.sendTurn({
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      text: 'Keep on server',
+      cliType: 'builtin',
+      agentType: 'codex',
+    });
+    const scope = { sessionId: 's1', userId: 'u1' };
+    const { items } = await fixture.runtime.sessionQueue({
+      ...scope,
+      action: 'list',
+    });
+    fail = true;
+    const outcome = await fixture.runtime.sessionQueue({
+      ...scope,
+      action: 'remove',
+      id: items[0].id,
+      revision: items[0].revision,
+    });
+    assert.equal(outcome.state, 'unknown');
+    // Deliver a real server increment while the local failed mutation still exists.
+    fixture.server.getMap('fixture').set('poll', true);
+    fixture.server.commit();
+    void fixture.pushUpdate();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await assert.rejects(
+      fixture.runtime.sessionQueue({ ...scope, action: 'list' }),
+      /session_not_ready/,
+    );
+    assert.notEqual(fixture.events.at(-1).status, 'live');
+    fail = false;
+    await fixture.runtime.openSession(
+      's1',
+      'w1',
+      async () => ({ token: 'synthetic', gatewayBaseUrl: 'https://x.invalid' }),
+      () => {},
+      async () => {},
+    );
+    const deadline = Date.now() + 3000;
+    let restored;
+    while (Date.now() < deadline) {
+      try {
+        restored = await fixture.runtime.sessionQueue({
+          ...scope,
+          action: 'list',
+        });
+        break;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+    assert.deepEqual(
+      restored?.items.map((item) => item.text),
+      ['Keep on server'],
+    );
+    assert.equal(
+      fixture.server.toJSON().mq.length,
+      1,
+      'no uncertain removal is replayed',
+    );
+  } finally {
+    fixture.close();
+  }
+});

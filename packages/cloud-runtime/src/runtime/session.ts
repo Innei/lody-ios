@@ -42,6 +42,7 @@ type SessionState = {
   client: StreamsClient;
   controller: AbortController;
   ready: boolean;
+  writeUncertain?: boolean;
   sending: boolean;
   working?: boolean;
   sendingId?: string;
@@ -235,6 +236,10 @@ function isWorking(state: SessionState) {
   return false;
 }
 function scheduleEmit(state: SessionState, status: string, reason?: string) {
+  if (state.writeUncertain) {
+    status = 'failed';
+    reason = 'queue_write_unknown';
+  }
   if (status !== state.status && sessions.get(state.id) === state)
     trace(state, 'status', { status, code: traceCode(reason) });
   state.status = status;
@@ -424,7 +429,7 @@ export async function openSession(
     !reserved.has(active.id)
   )
     evict(active);
-  if (existing && existing.status !== 'offline') {
+  if (existing && existing.status !== 'offline' && !existing.writeUncertain) {
     existing.emit = emit;
     if (activate) {
       active = existing;
@@ -498,9 +503,9 @@ export async function openSession(
         cursor = data.cursor,
         upToDate = data.upToDate;
       while (!controller.signal.aborted) {
-        state.ready = upToDate;
+        state.ready = upToDate && !state.writeUncertain;
         if (upToDate) {
-          settleLive(state);
+          if (!state.writeUncertain) settleLive(state);
           if (changed || state.status !== 'live') event('live');
           changed = false;
           pages = 0;
@@ -1530,7 +1535,9 @@ export async function sessionQueue(args: SessionQueueRequest) {
       scheduleEmit(state, state.status);
       return { state: 'ready' as const, items: readSessionQueue(state.doc) };
     } catch {
+      state.writeUncertain = true;
       state.ready = false;
+      settleLive(state, new Error('queue_write_unknown'));
       scheduleEmit(state, 'failed', 'queue_write_unknown');
       return { state: 'unknown' as const, items: [] };
     }

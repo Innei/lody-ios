@@ -100,9 +100,9 @@ struct MacDraftAttachments {
     return nil
   }
 
-  mutating func remove(id: String) {
+  mutating func remove(id: String, deleteFile: Bool = true) {
     guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-    try? FileManager.default.removeItem(at: items[index].url)
+    if deleteFile { try? FileManager.default.removeItem(at: items[index].url) }
     items.remove(at: index)
   }
 

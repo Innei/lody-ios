@@ -10,9 +10,11 @@ final class MacQueueModel {
   private let service: MacQueueService
   private(set) var items: [Item] = []
   private(set) var busy = false
+  private(set) var committing = false
   private(set) var blocked = false
   private(set) var error = ""
   private(set) var editing: Item?
+  private(set) var conflictText: String?
   var text = ""
   var changed: (() -> Void)?
   var onSteer: ((String) -> Void)?
@@ -27,7 +29,7 @@ final class MacQueueModel {
   func reload() async { await run(.list(.init(sessionId: sessionId, userId: userId))) }
 
   func begin(_ item: Item) async {
-    guard !busy, !blocked, !item.editing, editing == nil else { return }
+    guard !busy, !blocked, !item.editing, editing == nil, conflictText == nil else { return }
     let token = UUID().uuidString
     await run(.begin(.init(sessionId: sessionId, userId: userId, id: item.id, revision: item.revision, editToken: token)))
     guard !blocked, let owned = items.first(where: { $0.id == item.id && $0.editToken == token }) else { return }
@@ -63,19 +65,40 @@ final class MacQueueModel {
     changed?()
   }
 
+  func discardConflict() {
+    conflictText = nil
+    error = ""
+    changed?()
+  }
+
   private func run(_ params: RuntimeContract.SessionQueueParams) async {
     guard !busy else { return }
     if blocked, case .list = params {} else if blocked { return }
     busy = true
+    if case .list = params { committing = false } else { committing = true }
     error = ""
     changed?()
-    defer { busy = false; changed?() }
+    defer { busy = false; committing = false; changed?() }
     do {
       let result = try await service.request(params)
       items = result.items
+      if result.state != .unknown, let current = editing {
+        let finished: Bool
+        switch params {
+        case .save, .cancel: finished = result.state == .ready
+        default: finished = false
+        }
+        if finished { editing = nil }
+        else if !items.contains(where: { $0.id == current.id && $0.editing && $0.editToken == current.editToken && $0.revision == current.revision }) {
+          conflictText = text
+          editing = nil
+        }
+      }
       switch result.state {
-      case .ready: blocked = false
-      case .stale: error = Self.message("mac.queue.stale")
+      case .ready:
+        blocked = false
+        if conflictText != nil { error = Self.message("mac.queue.editingLost") }
+      case .stale: error = Self.message(conflictText == nil ? "mac.queue.stale" : "mac.queue.editingLost")
       case .unknown:
         blocked = true
         error = Self.message("mac.queue.unknown")

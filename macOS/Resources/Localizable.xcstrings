@@ -4917,6 +4917,54 @@
           }
         }
       }
+    },
+    "mac.queue.editingLost": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This queued message changed or was sent. Your unsaved text is kept below; copy it before editing another message."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条排队消息已更改或发送。未保存的文字保留在下方，可先复制后再编辑其他消息。"
+          }
+        }
+      }
+    },
+    "mac.queue.copyUnsaved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy unsaved text"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制未保存的文字"
+          }
+        }
+      }
+    },
+    "mac.queue.discardUnsaved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard unsaved text"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "丢弃未保存的文字"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

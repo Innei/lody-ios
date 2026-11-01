@@ -238,7 +238,8 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   }
 
   func removeAttachment(_ id: String) {
-    model.attachments.remove(id: id)
+    // Durable manifests, including in-flight handoffs, own these files.
+    model.attachments.remove(id: id, deleteFile: draftStore == nil)
     model.attachmentNotice = ""
     persistDraft()
     render()
