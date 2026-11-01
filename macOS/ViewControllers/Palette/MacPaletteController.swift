@@ -11,6 +11,7 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   private var scope: MacPaletteModel.Scope = .all
   private var machineId = ""
   private let search = NSSearchField()
+  private let clearQuery = NSButton()
   private let filter = NSPopUpButton()
   private let table = MacPaletteTable()
   private let scroll = NSScrollView()
@@ -29,23 +30,47 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   required init?(coder: NSCoder) { nil }
 
   override func loadView() {
-    let root = NSGlassEffectView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
-    root.style = .regular
-    root.cornerRadius = 20
+    let root = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
+    root.material = .popover
+    root.blendingMode = .behindWindow
+    root.state = .active
     root.wantsLayer = true
     root.layer?.cornerRadius = 20
     root.layer?.masksToBounds = true
+    let mask = NSImage(size: NSSize(width: 41, height: 41), flipped: false) { rect in
+      NSColor.white.setFill()
+      NSBezierPath(roundedRect: rect, xRadius: 20, yRadius: 20).fill()
+      return true
+    }
+    mask.capInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+    mask.resizingMode = .stretch
+    root.maskImage = mask
     root.setAccessibilityIdentifier("palette-content")
     let body = NSView()
-    root.contentView = body
+    body.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(body)
+    NSLayoutConstraint.activate([
+      body.leadingAnchor.constraint(equalTo: root.leadingAnchor), body.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      body.topAnchor.constraint(equalTo: root.topAnchor), body.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+    ])
     search.placeholderString = String(localized: "mac.palette.search", bundle: .lodyMac)
     if mode == .projects { search.placeholderString = String(localized: "mac.palette.searchProjects", bundle: .lodyMac) }
-    search.font = .systemFont(ofSize: 18)
-    search.controlSize = .large
+    search.font = .systemFont(ofSize: 19)
+    search.isBezeled = false
+    search.isBordered = false
+    search.drawsBackground = false
+    search.focusRingType = .none
+    (search.cell as? NSSearchFieldCell)?.searchButtonCell = nil
+    (search.cell as? NSSearchFieldCell)?.cancelButtonCell = nil
     search.sendsSearchStringImmediately = true
     search.delegate = self
     search.setAccessibilityIdentifier("palette-search")
     search.setAccessibilityLabel(search.placeholderString)
+    configure(clearQuery, #selector(clearSearch), "palette-search-clear")
+    clearQuery.image = NSImage(systemSymbolName: "xmark.circle", accessibilityDescription: nil)
+    clearQuery.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    clearQuery.contentTintColor = .secondaryLabelColor
+    clearQuery.setAccessibilityLabel(String(localized: "mac.sidebar.clearSearch", bundle: .lodyMac))
     filter.isBordered = false
     filter.font = .preferredFont(forTextStyle: .body)
     filter.setContentHuggingPriority(.required, for: .horizontal)
@@ -54,15 +79,24 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
     filter.setAccessibilityIdentifier("palette-filter")
     let back = NSButton(image: NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil) ?? NSImage(), target: self, action: #selector(cancel))
     back.isBordered = false
+    back.symbolConfiguration = .init(pointSize: 18, weight: .regular)
     back.isHidden = mode == .search
     back.setAccessibilityLabel(String(localized: "mac.palette.back", bundle: .lodyMac))
     back.setAccessibilityIdentifier("palette-back")
-    let header = NSStackView(views: [back, search, filter])
-    header.spacing = 8
+    let searchMark = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil) ?? NSImage())
+    searchMark.contentTintColor = .secondaryLabelColor
+    searchMark.symbolConfiguration = .init(pointSize: 18, weight: .regular)
+    searchMark.isHidden = mode == .projects
+    searchMark.setAccessibilityElement(false)
+    let header = NSStackView(views: [back, searchMark, search, filter, clearQuery])
+    header.spacing = 12
     header.alignment = .centerY
-    header.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+    header.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
     let close = button(mode == .search ? String(localized: "mac.palette.modeSearch", bundle: .lodyMac) : String(localized: "mac.palette.modeProjects", bundle: .lodyMac), #selector(cancel), "palette-close")
     close.title += "   esc"
+    close.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
+    close.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    close.imagePosition = .imageLeading
     close.setAccessibilityLabel(String(localized: "mac.palette.close", bundle: .lodyMac))
     configure(primary, #selector(confirm), "palette-primary")
     configure(actions, #selector(showActions), "palette-actions")
@@ -102,12 +136,19 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
     hint.textColor = .secondaryLabelColor
     let clear = button(String(localized: "mac.sidebar.clearSearch", bundle: .lodyMac), #selector(clearSearch), "palette-clear")
     clear.contentTintColor = .lodyAccent
-    for child in [emptyTitle, hint, clear] { empty.addArrangedSubview(child) }
+    let emptyMark = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil) ?? NSImage())
+    emptyMark.contentTintColor = .tertiaryLabelColor
+    emptyMark.symbolConfiguration = .init(pointSize: 24, weight: .regular)
+    emptyMark.setAccessibilityElement(false)
+    for child in [emptyMark, emptyTitle, hint, clear] { empty.addArrangedSubview(child) }
     for child in [header, scroll, footer, empty] { child.translatesAutoresizingMaskIntoConstraints = false; body.addSubview(child) }
     NSLayoutConstraint.activate([
       header.topAnchor.constraint(equalTo: body.topAnchor), header.leadingAnchor.constraint(equalTo: body.leadingAnchor),
       header.trailingAnchor.constraint(equalTo: body.trailingAnchor), header.heightAnchor.constraint(equalToConstant: 52),
       back.widthAnchor.constraint(equalToConstant: 24),
+      searchMark.widthAnchor.constraint(equalToConstant: 18),
+      search.heightAnchor.constraint(equalToConstant: 24),
+      clearQuery.widthAnchor.constraint(equalToConstant: 16), clearQuery.heightAnchor.constraint(equalToConstant: 24),
       footer.leadingAnchor.constraint(equalTo: body.leadingAnchor), footer.trailingAnchor.constraint(equalTo: body.trailingAnchor),
       footer.bottomAnchor.constraint(equalTo: body.bottomAnchor), footer.heightAnchor.constraint(equalToConstant: 44),
       scroll.leadingAnchor.constraint(equalTo: body.leadingAnchor, constant: 8), scroll.trailingAnchor.constraint(equalTo: body.trailingAnchor, constant: -8),
@@ -125,6 +166,7 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   func reload() {
     guard isViewLoaded else { return }
     let selectedId = selected?.id
+    clearQuery.isHidden = search.stringValue.isEmpty
     rebuildFilter()
     let items = MacPaletteModel(state: state, mode: mode).items(query: search.stringValue, scope: scope, machineId: machineId)
     rows.removeAll()
@@ -307,21 +349,20 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
     return button
   }
   private func capsule(_ buttons: [NSButton]) -> NSView {
-    let surface = NSVisualEffectView()
-    surface.material = .popover
-    surface.state = .active
-    surface.blendingMode = .withinWindow
-    surface.wantsLayer = true
-    surface.layer?.cornerRadius = 16
-    surface.layer?.masksToBounds = true
+    let surface = NSGlassEffectView()
+    surface.style = .regular
+    surface.cornerRadius = 16
+    if #available(macOS 27, *) { surface.effectIsInteractive = true }
     let stack = NSStackView(views: buttons)
     stack.spacing = 12
     stack.translatesAutoresizingMaskIntoConstraints = false
-    surface.addSubview(stack)
+    let content = NSView()
+    content.addSubview(stack)
+    surface.contentView = content
     NSLayoutConstraint.activate([
       surface.heightAnchor.constraint(equalToConstant: 32),
-      stack.leadingAnchor.constraint(equalTo: surface.leadingAnchor, constant: 10), stack.trailingAnchor.constraint(equalTo: surface.trailingAnchor, constant: -10),
-      stack.centerYAnchor.constraint(equalTo: surface.centerYAnchor),
+      stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 10), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -10),
+      stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
     ])
     return surface
   }

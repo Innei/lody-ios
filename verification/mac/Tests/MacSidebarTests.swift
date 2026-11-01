@@ -253,6 +253,28 @@ final class MacPaletteModelTests: XCTestCase {
 
 @MainActor
 final class MacSidebarChromeTests: XCTestCase {
+  func testThePaletteHeaderClearButtonRestoresResultsAndKeepsSearchOpen() throws {
+    let (sidebar, window) = host()
+    defer { window.close() }
+    let before = sidebar.visibleIds
+    sidebar.focusSearch()
+    let panel = try XCTUnwrap(window.childWindows?.first { $0.identifier?.rawValue == "command-palette" })
+    defer { panel.close() }
+    let field = try XCTUnwrap(panel.contentView?.descendants(NSSearchField.self).first)
+    field.stringValue = "no matching task"
+    field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+    let table = try XCTUnwrap(panel.contentView?.descendants(NSTableView.self).first)
+    XCTAssertEqual(table.numberOfRows, 0)
+    let clear = try XCTUnwrap(panel.contentView?.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "palette-search-clear" })
+    XCTAssertFalse(clear.isHidden)
+    clear.performClick(nil)
+    XCTAssertEqual(field.stringValue, "")
+    XCTAssertGreaterThan(table.numberOfRows, 0)
+    XCTAssertTrue(clear.isHidden)
+    XCTAssertTrue(window.childWindows?.contains(panel) == true)
+    XCTAssertEqual(sidebar.visibleIds, before)
+  }
+
   func testAClosedPaletteCannotApplyALateSelection() {
     let parent = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
     parent.isReleasedWhenClosed = false
