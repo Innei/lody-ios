@@ -12,10 +12,23 @@ final class MacInterruptionOption: NSView {
     super.init(frame: .zero)
     button.setButtonType(multiple ? .switch : .radio)
     button.isBordered = false
-    let text = NSMutableAttributedString(string: title, attributes: [.font: NSFont.preferredFont(forTextStyle: .body), .foregroundColor: NSColor.labelColor])
-    if !detail.isEmpty { text.append(NSAttributedString(string: "\n" + detail, attributes: [.font: NSFont.preferredFont(forTextStyle: .subheadline), .foregroundColor: NSColor.secondaryLabelColor])) }
-    button.attributedTitle = text
-    button.cell?.wraps = true
+    button.imagePosition = .imageOnly
+    let heading = NSTextField(wrappingLabelWithString: title)
+    heading.font = .preferredFont(forTextStyle: .body)
+    heading.setAccessibilityElement(false)
+    let labels = NSStackView(views: [heading])
+    labels.orientation = .vertical
+    labels.alignment = .leading
+    labels.spacing = 2
+    heading.widthAnchor.constraint(equalTo: labels.widthAnchor).isActive = true
+    if !detail.isEmpty {
+      let description = NSTextField(wrappingLabelWithString: detail)
+      description.font = .preferredFont(forTextStyle: .subheadline)
+      description.textColor = .secondaryLabelColor
+      description.setAccessibilityElement(false)
+      labels.addArrangedSubview(description)
+      description.widthAnchor.constraint(equalTo: labels.widthAnchor).isActive = true
+    }
     button.setAccessibilityLabel(title)
     button.setAccessibilityHelp(detail)
     let key = NSTextField(labelWithString: String(index + 1))
@@ -28,19 +41,26 @@ final class MacInterruptionOption: NSView {
     fill.cornerRadius = 8
     fill.contentViewMargins = .zero
     fill.fillColor = .clear
-    for child in [fill, button, key] { child.translatesAutoresizingMaskIntoConstraints = false }
+    for child in [fill, button, labels, key] { child.translatesAutoresizingMaskIntoConstraints = false }
     addSubview(fill)
     fill.contentView?.addSubview(button)
+    fill.contentView?.addSubview(labels)
     fill.contentView?.addSubview(key)
     NSLayoutConstraint.activate([
       fill.leadingAnchor.constraint(equalTo: leadingAnchor), fill.trailingAnchor.constraint(equalTo: trailingAnchor),
       fill.topAnchor.constraint(equalTo: topAnchor), fill.bottomAnchor.constraint(equalTo: bottomAnchor),
       heightAnchor.constraint(equalToConstant: 52), button.leadingAnchor.constraint(equalTo: fill.leadingAnchor, constant: 12),
-      button.trailingAnchor.constraint(lessThanOrEqualTo: key.leadingAnchor, constant: -12), button.centerYAnchor.constraint(equalTo: fill.centerYAnchor),
+      button.widthAnchor.constraint(equalToConstant: 24), button.centerYAnchor.constraint(equalTo: fill.centerYAnchor),
       button.heightAnchor.constraint(equalToConstant: 44), key.trailingAnchor.constraint(equalTo: fill.trailingAnchor, constant: -12), key.centerYAnchor.constraint(equalTo: fill.centerYAnchor),
+      labels.leadingAnchor.constraint(equalTo: button.trailingAnchor, constant: 8), labels.trailingAnchor.constraint(equalTo: key.leadingAnchor, constant: -12), labels.centerYAnchor.constraint(equalTo: fill.centerYAnchor),
     ])
   }
   required init?(coder: NSCoder) { nil }
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard let hit = super.hitTest(point) else { return nil }
+    return hit === button || hit.isDescendant(of: button) ? hit : self
+  }
+  override func mouseDown(with event: NSEvent) { if button.isEnabled { button.performClick(nil) } }
   func update(selected: Bool, enabled: Bool) {
     button.state = selected ? .on : .off
     button.isEnabled = enabled

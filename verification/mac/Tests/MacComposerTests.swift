@@ -458,6 +458,17 @@ final class MacComposerOptionsTests: XCTestCase {
 
 @MainActor
 final class MacInterruptionStudyTests: XCTestCase {
+  func testAnOptionIsClickableAcrossItsAvailableRowWidth() throws {
+    var chosen = false
+    let row = MacInterruptionOption(title: "macOS", detail: "Run the native Mac checks", index: 0, action: { chosen = true })
+    row.frame = NSRect(x: 0, y: 0, width: 600, height: 52)
+    row.layoutSubtreeIfNeeded()
+    let hit = row.hitTest(NSPoint(x: 480, y: 26))
+    let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 480, y: 26), modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    hit?.mouseDown(with: event)
+    XCTAssertTrue(chosen, "clicking the label side of the row must choose its native control")
+  }
+
   func testNativeChoiceCenterIsAnInteractiveRadioTarget() throws {
     let study = MacInterruptionStudy(content: .approval)
     let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
