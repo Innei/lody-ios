@@ -36,7 +36,8 @@ export async function transcript(session: Session) {
     expect(
       find(
         ready,
-        (node) => node.class.includes('Button') && node.text === 'Allow',
+        (node) =>
+          node.identifier === 'permission-option-0' && node.enabled === true,
       ).length === 1,
       'the permission card offers Allow',
     );
