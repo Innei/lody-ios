@@ -9,6 +9,12 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private let view1 = MacComposerView()
   private var optionsTask: Task<Void, Never>?
   private var draft = MacDraftHandoff()
+  private var draftScope: MacDraftStore.Scope?
+  private var draftStore: MacDraftStore?
+  private let draftOwner = UUID().uuidString
+  private var draftObserver: NSObjectProtocol?
+  private var sentId: String?
+  private var persistenceFailed = false
   private let optionsPanel = MacComposerOptionsController()
   private let optionsPopover = NSPopover()
   var onReplyChoice: (([String: Any]) -> Void)?
@@ -38,6 +44,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     } else { return }
     if userInitiated { configured = true }
     inheritedMachineId = machineId
+    persistDraft()
     render()
     onProjectChange?(userInitiated)
     if isViewLoaded { loadOptions() }
@@ -54,8 +61,87 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
 
   required init?(coder: NSCoder) { nil }
 
+  isolated deinit { if let draftObserver { NotificationCenter.default.removeObserver(draftObserver) } }
+
+  func bindDraft(_ scope: MacDraftStore.Scope, store: MacDraftStore = .shared) {
+    guard !scope.user.isEmpty, !scope.workspace.isEmpty else { return }
+    if let draftObserver { NotificationCenter.default.removeObserver(draftObserver) }
+    draftScope = scope
+    draftStore = store
+    loadDraft()
+    draftObserver = NotificationCenter.default.addObserver(forName: MacDraftStore.changed, object: store, queue: .main) { [weak self] note in
+      let scopeKey = note.userInfo?["scope"] as? String
+      let sender = note.userInfo?["owner"] as? String
+      MainActor.assumeIsolated {
+        guard let self, !self.persistenceFailed, store.ownsNotification(scopeKey: scopeKey, sender: sender, scope: scope, owner: self.draftOwner) else { return }
+        self.loadDraft()
+      }
+    }
+  }
+
+  private func loadDraft() {
+    guard let draftScope, let draftStore else { return }
+    do {
+      let loaded = try draftStore.load(draftScope)
+      model.text = loaded?.record.text ?? ""
+      model.attachments.restore(loaded?.attachments ?? [])
+      if let selection = loaded?.record.selection, model.mode == .newSession {
+        model.form.prefs = selection.prefs
+        model.form.open(projectId: selection.projectId.isEmpty ? nil : selection.projectId, context: selection.chat ? "chat" : nil)
+        if isViewLoaded { loadOptions() }
+      }
+      if isViewLoaded { view1.input.string = model.text }
+      model.attachmentNotice = model.attachments.items.contains(where: { !FileManager.default.fileExists(atPath: $0.url.path) })
+        ? String(localized: "mac.draft.missing", bundle: .lodyMac) : ""
+      render()
+      onProjectChange?(false)
+    } catch { draftError() }
+  }
+
+  @discardableResult
+  private func persistDraft() -> Bool {
+    guard let draftScope, let draftStore else { return true }
+    do {
+      var selection: MacDraftStore.Selection?
+      if model.mode == .newSession { selection = .init(projectId: model.form.project.projectId, chat: model.form.chat, prefs: model.form.prefs) }
+      let saved = try draftStore.save(draftScope, text: model.text, attachments: model.attachments.items, selection: selection, owner: draftOwner)
+      model.attachments.restore(saved.attachments)
+      persistenceFailed = false
+      return true
+    } catch { draftError(); return false }
+  }
+
+  private func draftError() {
+    persistenceFailed = true
+    model.attachmentNotice = String(localized: "mac.draft.failed", bundle: .lodyMac)
+    render()
+  }
+
+  private func handoff(_ id: String) -> Bool {
+    guard persistDraft() else { return false }
+    do {
+      if let draftStore, let draftScope { try draftStore.handoff(draftScope, sendId: id) }
+      sentId = id
+      return true
+    } catch { draftError(); return false }
+  }
+
+  func reconcileDraft(pending: String?, delivered: Set<String>, uploaded: Bool) {
+    guard let draftScope, let draftStore else { return }
+    do {
+      if let pending, draftStore.matchesHandoff(draftScope, sendId: pending, text: model.text, ids: model.attachments.items.map(\.id)) {
+        clearInput()
+      }
+      var confirmed = delivered
+      if uploaded, let pending { confirmed.insert(pending) }
+      try draftStore.settle(draftScope, delivered: confirmed)
+      try draftStore.settle(.init(user: draftScope.user, workspace: draftScope.workspace, session: "new"), delivered: confirmed)
+    } catch { draftError() }
+  }
+
   override func loadView() {
     view = view1
+    view1.input.string = model.text
     view1.input.delegate = self
     view1.onSend = { [weak self] in self?.send() }
     view1.onStop = { [weak self] in self?.onStop?() }
@@ -128,18 +214,22 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view1.input.string = restored.text
     model.text = restored.text
     model.attachments.restore(restored.attachments)
+    if persistDraft(), let sentId, let draftScope, let draftStore { try? draftStore.complete(draftScope, sendId: sentId) }
+    sentId = nil
     render()
   }
 
   func addFiles(_ urls: [URL]) {
     let rejections = model.attachments.add(urls: urls)
     model.attachmentNotice = rejections.first?.message ?? ""
+    persistDraft()
     render()
   }
 
   func paste(_ pasteboard: NSPasteboard) -> Bool {
     guard let rejections = model.attachments.add(pasteboard: pasteboard) else { return false }
     model.attachmentNotice = rejections.first?.message ?? ""
+    persistDraft()
     render()
     return true
   }
@@ -147,6 +237,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   func removeAttachment(_ id: String) {
     model.attachments.remove(id: id)
     model.attachmentNotice = ""
+    persistDraft()
     render()
   }
 
@@ -154,10 +245,15 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     service.pick(view.window) { [weak self] in self?.addFiles($0) }
   }
 
-  func clearDraft() { draft.clear() }
+  func clearDraft() {
+    draft.clear()
+    if let sentId, let draftScope, let draftStore { try? draftStore.complete(draftScope, sendId: sentId) }
+    sentId = nil
+  }
 
   func textDidChange(_ notification: Notification) {
     model.text = view1.input.string
+    persistDraft()
     render()
   }
 
@@ -197,6 +293,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     guard machines.indices.contains(view1.machine.indexOfSelectedItem) else { return }
     configured = true
     model.form.selectMachine(machines[view1.machine.indexOfSelectedItem].id)
+    persistDraft()
     render()
   }
 
@@ -205,6 +302,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     guard agents.indices.contains(view1.agent.indexOfSelectedItem) else { return }
     configured = true
     model.form.selectAgent(agents[view1.agent.indexOfSelectedItem].key)
+    persistDraft()
     render()
   }
 
@@ -246,15 +344,19 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
 
   private func send() {
     guard model.canSend else { return }
-    let payload = model.payload(id: UUID().uuidString.lowercased())
+    let id = UUID().uuidString.lowercased()
     let text = model.text
     switch model.mode {
     case .newSession:
       guard let sessionId = model.form.current.options?.sessionId, let created = model.form.draft(sessionId: sessionId) else { return }
+      guard handoff(id) else { return }
+      let payload = model.payload(id: id)
       clearInput()
       onSend?()
       service.create(created, payload)
     case .reply:
+      guard handoff(id) else { return }
+      let payload = model.payload(id: id)
       draft.sent(text, attachments: model.attachments.items)
       clearInput()
       onSend?()

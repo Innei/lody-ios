@@ -4661,6 +4661,38 @@
           }
         }
       }
+    },
+    "mac.draft.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t save this draft. Your input is still here; try again before leaving."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存草稿。输入内容仍在，请在离开前重试。"
+          }
+        }
+      }
+    },
+    "mac.draft.missing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A draft attachment is unavailable. Remove it or attach the file again before sending."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "草稿中的附件不可用。请移除或重新添加后再发送。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

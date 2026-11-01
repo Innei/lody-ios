@@ -30,6 +30,7 @@ final class MacNewSessionController: NSViewController {
     online = Set(state.presence.onlineMachineIds)
     composer = MacComposerController(model: model, service: wrapped)
     super.init(nibName: nil, bundle: nil)
+    if let store = service.drafts { composer.bindDraft(.init(user: state.userId, workspace: state.workspaceId, session: "new"), store: store) }
     composer.onSend = { [weak self] in self?.onSubmit?() }
     composer.onProjectChange = { [weak self] userInitiated in
       guard let self else { return }

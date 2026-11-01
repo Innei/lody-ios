@@ -364,6 +364,148 @@ final class MacQueueTests: XCTestCase {
 }
 
 @MainActor
+final class MacDurableDraftTests: XCTestCase {
+  func testANewSessionRestoresItsProjectAlongWithTheText() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var state = MacFixtures.listState
+    state.userId = "new-draft-user"
+    let project = try XCTUnwrap(state.catalog.projects.last)
+    let source = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    var service = MacComposerFixture.service
+    service.drafts = MacDraftStore(root: directory)
+    var first: MacNewSessionController? = MacNewSessionController(source: source, service: service)
+    let input = try XCTUnwrap(first?.view.descendants(MacComposerTextView.self).first)
+    first?.selectProject(project.id)
+    input.string = "A task for this project"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    first = nil
+    let restored = MacNewSessionController(source: source, service: service)
+    let restoredInput = try XCTUnwrap(restored.view.descendants(MacComposerTextView.self).first)
+    XCTAssertEqual(restoredInput.string, "A task for this project")
+    let heading = try XCTUnwrap(restored.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "new-session-project-heading" })
+    XCTAssertTrue(heading.title.contains(project.name))
+  }
+
+  func testAMissingRestoredAttachmentMustBeRemovedBeforeSending() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let original = directory.appendingPathComponent("notes.txt")
+    try Data("Notes".utf8).write(to: original)
+    var files = MacDraftAttachments()
+    _ = files.add(urls: [original])
+    let store = MacDraftStore(root: directory.appendingPathComponent("drafts"))
+    let scope = MacDraftStore.Scope(user: "u", workspace: "w", session: "s")
+    let saved = try store.save(scope, text: "Read this", attachments: files.items, selection: nil, owner: "writer")
+    try FileManager.default.removeItem(at: XCTUnwrap(saved.attachments.first?.url))
+    let controller = MacComposerController(model: .init(mode: .reply), service: MacComposerFixture.service)
+    controller.bindDraft(scope, store: store)
+    controller.updateReply(ready: true, capability: nil, choice: nil)
+    _ = controller.view
+    XCTAssertFalse(controller.model.canSend)
+    XCTAssertFalse(controller.model.attachmentNotice.isEmpty)
+    controller.removeAttachment(try XCTUnwrap(controller.model.attachments.items.first?.id))
+    XCTAssertTrue(controller.model.canSend)
+    XCTAssertEqual(controller.model.text, "Read this")
+  }
+
+  func testAnAcknowledgementDoesNotClearNewTypingEvenWhenItRepeatsTheSentText() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = MacDraftStore(root: directory)
+    let scope = MacDraftStore.Scope(user: "u", workspace: "w", session: "s")
+    try store.save(scope, text: "Continue", attachments: [], selection: nil, owner: "window")
+    try store.handoff(scope, sendId: "send-one")
+    try store.save(scope, text: "Continue", attachments: [], selection: nil, owner: "window")
+    try store.complete(scope, sendId: "send-one")
+    XCTAssertEqual(try store.load(scope)?.record.text, "Continue")
+  }
+
+  func testTheOutboxOwnsSentFilesUntilItsAcknowledgementWhileTheNextDraftStaysIndependent() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let original = directory.appendingPathComponent("notes.txt")
+    try Data("Sent file".utf8).write(to: original)
+    var files = MacDraftAttachments()
+    XCTAssertTrue(files.add(urls: [original]).isEmpty)
+    let store = MacDraftStore(root: directory.appendingPathComponent("drafts"))
+    let scope = MacDraftStore.Scope(user: "u", workspace: "w", session: "s")
+    let saved = try store.save(scope, text: "First", attachments: files.items, selection: nil, owner: "window")
+    let sent = try XCTUnwrap(saved.attachments.first?.url)
+    try store.handoff(scope, sendId: "first")
+    try store.save(scope, text: "Next", attachments: [], selection: nil, owner: "window")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: sent.path), "clearing the input must not break an upload")
+    try store.complete(scope, sendId: "first")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: sent.path))
+    XCTAssertEqual(try store.load(scope)?.record.text, "Next")
+  }
+
+  func testTwoWindowsOnTheSameScopeObserveTheLatestDraft() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = MacDraftStore(root: directory)
+    let scope = MacDraftStore.Scope(user: "u", workspace: "w", session: "s")
+    let first = MacComposerController(model: .init(mode: .reply), service: MacComposerFixture.service)
+    let second = MacComposerController(model: .init(mode: .reply), service: MacComposerFixture.service)
+    first.bindDraft(scope, store: store)
+    second.bindDraft(scope, store: store)
+    _ = second.view
+    let input = try XCTUnwrap(first.view.descendants(MacComposerTextView.self).first)
+    input.string = "Shared draft"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    XCTAssertEqual(second.model.text, "Shared draft")
+  }
+
+  func testASaveFailureLeavesTheInputInPlaceAndDoesNotSubmitIt() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try Data("not a directory".utf8).write(to: file)
+    defer { try? FileManager.default.removeItem(at: file) }
+    var calls = 0
+    var service = MacComposerFixture.service
+    service.reply = { _, _ in calls += 1 }
+    let controller = MacComposerController(model: .init(mode: .reply), service: service)
+    controller.bindDraft(.init(user: "u", workspace: "w", session: "s"), store: MacDraftStore(root: file))
+    controller.updateReply(ready: true, capability: nil, choice: nil)
+    let input = try XCTUnwrap(controller.view.descendants(MacComposerTextView.self).first)
+    input.string = "Keep this"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    try XCTUnwrap(controller.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-send" }).performClick(nil)
+    XCTAssertEqual(controller.model.text, "Keep this")
+    XCTAssertEqual(calls, 0)
+    XCTAssertFalse(controller.model.attachmentNotice.isEmpty)
+  }
+
+  func testRecreatingAReplyRestoresTextAndItsOwnAttachmentCopyWithoutLeakingToAnotherScope() throws {
+    var state = MacFixtures.listState
+    state.userId = "draft-\(UUID().uuidString)"
+    let id = state.catalog.sessions[0].id
+    let sessions = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".txt")
+    try Data("Retain this attachment".utf8).write(to: file)
+    defer { try? FileManager.default.removeItem(at: file) }
+    var first: MacReplyBridge? = MacReplyBridge(sessionId: id, sessions: sessions)
+    let input = try XCTUnwrap(first?.composer.view.descendants(MacComposerTextView.self).first)
+    input.string = "Review the attached notes"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    first?.composer.addFiles([file])
+    first = nil
+    try FileManager.default.removeItem(at: file)
+    let restored = MacReplyBridge(sessionId: id, sessions: sessions)
+    _ = restored.composer.view
+    XCTAssertEqual(restored.composer.model.text, "Review the attached notes")
+    let attachment = try XCTUnwrap(restored.composer.model.attachments.items.first)
+    XCTAssertEqual(try String(contentsOf: attachment.url, encoding: .utf8), "Retain this attachment")
+    state.workspaceId = "other-workspace"
+    let other = MacReplyBridge(sessionId: id, sessions: sessions)
+    _ = other.composer.view
+    XCTAssertEqual(other.composer.model.text, "")
+    XCTAssertTrue(other.composer.model.attachments.isEmpty)
+  }
+}
+
+@MainActor
 final class MacWorkspaceChromeTests: XCTestCase {
   func testTabTitlesAndBadgesFollowTheCatalog() {
     let name = Notification.Name("MacWorkspaceChromeTests")

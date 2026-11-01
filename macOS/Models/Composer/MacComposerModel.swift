@@ -29,6 +29,7 @@ struct MacComposerModel {
   }
 
   var canSend: Bool {
+    guard !attachments.items.contains(where: { !FileManager.default.fileExists(atPath: $0.url.path) }) else { return false }
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return false }
     switch mode {
     case .newSession: return missing == nil && form.canSend

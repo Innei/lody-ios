@@ -7,6 +7,7 @@ struct MacComposerService {
   var options: @MainActor (_ workspaceId: String, _ projectId: String?) async throws -> CreationOptions
   var create: @MainActor (_ draft: CreateSessionDraft, _ payload: [String: Any]) -> Void
   var reply: @MainActor (_ payload: [String: Any], _ choice: ModelChoice) -> Void = { _, _ in }
+  var drafts: MacDraftStore?
   var pick: @MainActor (_ window: NSWindow?, _ picked: @escaping @MainActor ([URL]) -> Void) -> Void = Self.openPanel
 
   static func openPanel(_ window: NSWindow?, _ picked: @escaping @MainActor ([URL]) -> Void) {
@@ -42,11 +43,17 @@ struct MacComposerService {
           await create(
             draft, payload,
             put: { OutboxSession.shared.put(user: draft.userId, workspace: draft.workspaceId, json: $0) },
-            opened: { NotificationCenter.default.post(name: .lodyMacOpenSession, object: nil, userInfo: ["sessionId": $0]) },
+            opened: { sessionId in
+              if let id = payload["id"] as? String {
+                try? MacDraftStore.shared.complete(.init(user: draft.userId, workspace: draft.workspaceId, session: "new"), sendId: id, keepAssets: true)
+              }
+              NotificationCenter.default.post(name: .lodyMacOpenSession, object: nil, userInfo: ["sessionId": sessionId])
+            },
             toast: { LodyHosting.current?.toast($0, kind: "error") }
           )
         }
-      }
+      },
+      drafts: .shared
     )
   }
 

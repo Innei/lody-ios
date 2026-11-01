@@ -37,6 +37,7 @@ final class MacReplyBridge {
       create: { _, _ in },
       reply: { [weak sender, weak choices] payload, _ in sender?.submit(payload, choice: choices?.sendChoice ?? [:]) }
     ))
+    composer.bindDraft(.init(user: state.userId, workspace: state.workspaceId, session: sessionId))
     composer.onReplyChoice = { [weak self] body in
       self?.choices.change(body)
       self?.refresh()
@@ -93,6 +94,8 @@ final class MacReplyBridge {
     composer.replyContext = (project?.name ?? "", session.branchName ?? "", state.catalog.machineNames[session.machineId] ?? "")
     composer.updateReply(ready: sender.canSend, capability: choices.capability, choice: choices.active)
     composer.updateRun(control.state(session: session, transcript: feed.transcript, live: live, overflow: feed.overflow, steerable: choices.steerable))
+    composer.reconcileDraft(pending: sender.record?.sendId, delivered: feed.transcript.entryIds,
+                            uploaded: sender.record.map { ["accepted", "uploaded", "queued"].contains($0.phase) } ?? false)
     let next = sender.pendingSendJSON
     if next != pending {
       pending = next
