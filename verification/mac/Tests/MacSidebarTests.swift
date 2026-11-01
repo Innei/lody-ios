@@ -3,6 +3,77 @@ import XCTest
 import LodyData
 @testable import LodyMacApp
 
+@MainActor
+final class MacNewChatFlowTests: XCTestCase {
+  private func host() -> (MacWorkspaceController, NSWindow) {
+    let workspace = MacWorkspaceController(environment: MacFixtures.environment)
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentViewController = workspace
+    window.layoutIfNeeded()
+    return (workspace, window)
+  }
+
+  func testRepeatingNewChatKeepsTheDraftEditorAndText() throws {
+    let (workspace, window) = host()
+    defer { window.close() }
+    workspace.open(nil)
+    let original = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    original.string = "Keep my unsent draft"
+    original.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: original))
+    workspace.open(nil)
+    let returned = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    XCTAssertTrue(original === returned, "New Chat resumes the same draft rather than constructing a replacement")
+    XCTAssertEqual(returned.string, "Keep my unsent draft")
+  }
+
+  func testConversationDetourKeepsTheDraftsProjectAndText() throws {
+    let (workspace, window) = host()
+    defer { window.close() }
+    workspace.open(nil)
+    let original = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    original.string = "Keep the lody-ios context"
+    original.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: original))
+    workspace.open("s-landing")
+    workspace.open(nil)
+    let returned = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    XCTAssertEqual(returned.string, "Keep the lody-ios context")
+    let project = try XCTUnwrap(window.contentView?.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "composer-project" })
+    XCTAssertEqual(project.titleOfSelectedItem, "lody-ios")
+  }
+
+  func testFreshDraftInheritsTheCurrentSessionsProject() throws {
+    let (workspace, window) = host()
+    defer { window.close() }
+    workspace.open("s-landing")
+    workspace.open(nil)
+    let project = try XCTUnwrap(window.contentView?.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "composer-project" })
+    XCTAssertEqual(project.titleOfSelectedItem, "lody-web")
+  }
+
+  func testWorkspaceChangeDiscardsThePreviousPrivateDraft() throws {
+    var state = MacFixtures.listState
+    let changed = Notification.Name("mac-new-chat-workspace-changed")
+    let source = MacSessionsSource(changes: [changed], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    var environment = MacFixtures.environment
+    environment.sessions = source
+    environment.newSession = { MacNewSessionController(source: source, service: MacComposerFixture.service) }
+    let workspace = MacWorkspaceController(environment: environment)
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentViewController = workspace
+    defer { window.close() }
+    workspace.open(nil)
+    let input = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    input.string = "Private draft in the first workspace"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    state.workspaceId = "w-other"
+    NotificationCenter.default.post(name: changed, object: nil)
+    let current = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
+    XCTAssertEqual(current.string, "", "changing workspace must not expose a retained draft from the old scope")
+  }
+}
+
 final class MacSidebarTests: XCTestCase {
   private func state() -> SessionListState {
     var catalog = SessionCatalog()

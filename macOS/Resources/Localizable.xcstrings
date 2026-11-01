@@ -1,6 +1,20 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "mac.newSession.projectPrompt %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "What should we build in %@?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "在 %@ 中开始什么？" } }
+      }
+    },
+    "mac.newSession.chatPrompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Start a new chat" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开始新对话" } }
+      }
+    },
     "mac.composer.automaticModel": {
       "extractionState": "manual",
       "localizations": {

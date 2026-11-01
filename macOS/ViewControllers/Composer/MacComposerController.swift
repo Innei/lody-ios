@@ -13,6 +13,27 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private let optionsPopover = NSPopover()
   var onReplyChoice: (([String: Any]) -> Void)?
   var onSend: (() -> Void)?
+  var onProjectChange: ((_ userInitiated: Bool) -> Void)?
+  private var inheritedMachineId: String?
+
+  var hasDraft: Bool { !model.text.isEmpty || !model.attachments.isEmpty }
+
+  func focusInput() { view.window?.makeFirstResponder(view1.input) }
+  func showProjects() { view1.project.performClick(nil) }
+
+  func selectProject(_ id: String?, machineId: String? = nil, userInitiated: Bool = true) {
+    guard model.mode == .newSession else { return }
+    if let id, let project = model.form.projects.first(where: { $0.id == id }) {
+      model.form.switchPage(chat: false)
+      model.form.selectProject(project)
+    } else if id == nil {
+      model.form.switchPage(chat: true)
+    } else { return }
+    inheritedMachineId = machineId
+    render()
+    onProjectChange?(userInitiated)
+    if isViewLoaded { loadOptions() }
+  }
   var replyContext: (project: String, branch: String, machine: String) = ("", "", "") {
     didSet { render() }
   }
@@ -118,11 +139,16 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     optionsTask?.cancel()
     let workspaceId = model.form.workspaceId, projectId = model.form.chat ? nil : model.form.current.projectId
     let chat = model.form.chat
+    let machineId = inheritedMachineId
+    inheritedMachineId = nil
     optionsTask = Task { [weak self, service] in
       do {
         let options = try await service.options(workspaceId, projectId)
         guard !Task.isCancelled else { return }
         self?.model.form.applyOptions(options, chat: chat)
+        if let self, let machineId, model.form.current.machines.contains(where: { $0.id == machineId }) {
+          model.form.selectMachine(machineId)
+        }
       } catch {
         self?.model.form.failOptions(chat: chat)
       }
@@ -133,13 +159,10 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   @objc private func projectChanged() {
     let index = view1.project.indexOfSelectedItem
     if index == model.form.projects.count {
-      model.form.switchPage(chat: true)
+      selectProject(nil)
     } else if model.form.projects.indices.contains(index) {
-      model.form.switchPage(chat: false)
-      model.form.selectProject(model.form.projects[index])
+      selectProject(model.form.projects[index].id)
     }
-    render()
-    loadOptions()
   }
 
   @objc private func machineChanged() {
@@ -198,6 +221,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     case .newSession:
       guard let sessionId = model.form.current.options?.sessionId, let created = model.form.draft(sessionId: sessionId) else { return }
       clearInput()
+      onSend?()
       service.create(created, payload)
     case .reply:
       draft.sent(text, attachments: model.attachments.items)

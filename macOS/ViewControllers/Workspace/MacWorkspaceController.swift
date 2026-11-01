@@ -7,6 +7,8 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   let sidebar: SidebarViewController
   private let detail = MacDetailController()
   private var pane: MacSessionPane?
+  private var newSession: NSViewController?
+  private var scope: [String]
   private var streaming = false
   private var sizedSidebar = false
   private var observers: [NSObjectProtocol] = []
@@ -22,6 +24,8 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   init(environment: MacEnvironment) {
     self.environment = environment
+    let state = environment.sessions.read()
+    scope = [state.userId, state.workspaceId]
     sidebar = SidebarViewController(source: environment.sessions, account: environment.account)
     super.init(nibName: nil, bundle: nil)
   }
@@ -57,7 +61,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     })
     for name in environment.sessions.changes {
       observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated { self?.refreshChrome() }
+        MainActor.assumeIsolated { self?.catalogChanged() }
       })
     }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
@@ -94,12 +98,22 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   func open(_ id: String?) {
     guard id != sessionId || pane == nil else { return }
+    let context = sessionId.flatMap { environment.sessions.read().catalog.session($0) }
     pane?.setStreaming(false)
     sessionId = id
     sidebar.select(sessionId: id)
     guard let id else {
       pane = nil
-      detail.show(environment.newSession())
+      let controller = newSession ?? environment.newSession()
+      newSession = controller
+      if let draft = controller as? MacNewSessionController {
+        draft.inherit(projectId: context?.projectId, machineId: context?.machineId)
+        draft.onSubmit = { [weak self, weak draft] in
+          if self?.newSession === draft { self?.newSession = nil }
+        }
+      }
+      detail.show(controller)
+      (controller as? MacNewSessionController)?.focusInput()
       onTitle?(String(localized: "mac.newSession.title", bundle: .lodyMac), "")
       onBadge?(nil)
       return
@@ -108,6 +122,21 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     pane = next
     detail.show(next)
     next.setStreaming(streaming)
+    refreshChrome()
+  }
+
+  private func catalogChanged() {
+    let state = environment.sessions.read()
+    let next = [state.userId, state.workspaceId]
+    if next != scope {
+      scope = next
+      newSession = nil
+      pane?.setStreaming(false)
+      pane = nil
+      sessionId = nil
+      open(nil)
+      return
+    }
     refreshChrome()
   }
 

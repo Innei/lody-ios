@@ -7,6 +7,9 @@ final class MacNewSessionController: NSViewController {
   private let composer: MacComposerController
   private let source: MacSessionsSource
   private let status = NSTextField(labelWithString: "")
+  private let heading = NSButton()
+  private var explicitContext = false
+  var onSubmit: (() -> Void)?
   private var online: Set<String>
   private var observers: [NSObjectProtocol] = []
 
@@ -26,6 +29,12 @@ final class MacNewSessionController: NSViewController {
     online = Set(state.presence.onlineMachineIds)
     composer = MacComposerController(model: model, service: wrapped)
     super.init(nibName: nil, bundle: nil)
+    composer.onSend = { [weak self] in self?.onSubmit?() }
+    composer.onProjectChange = { [weak self] userInitiated in
+      guard let self else { return }
+      if userInitiated { explicitContext = true }
+      updateHeading()
+    }
     observers = source.changes.map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.catalogChanged() }
@@ -39,6 +48,25 @@ final class MacNewSessionController: NSViewController {
 
   required init?(coder: NSCoder) { nil }
 
+  func inherit(projectId: String?, machineId: String?) {
+    guard !composer.hasDraft, !explicitContext, let projectId else { return }
+    composer.selectProject(projectId, machineId: machineId, userInitiated: false)
+  }
+
+  func focusInput() { composer.focusInput() }
+
+  @objc private func chooseProject() { composer.showProjects() }
+
+  private func updateHeading() {
+    let form = composer.model.form
+    let name = form.projects.first { $0.id == form.current.projectId }?.name
+    if !form.chat, let name {
+      heading.title = String(localized: "mac.newSession.projectPrompt \(name)", bundle: .lodyMac)
+    } else {
+      heading.title = String(localized: "mac.newSession.chatPrompt", bundle: .lodyMac)
+    }
+  }
+
   private static func projects(_ state: SessionListState) -> [CreateProject] {
     state.catalog.projects.map { CreateProject(id: $0.id, machineId: $0.machineId, name: $0.name, rootPath: $0.rootPath) }
   }
@@ -48,33 +76,49 @@ final class MacNewSessionController: NSViewController {
     let next = Set(state.presence.onlineMachineIds)
     composer.updateCatalog(projects: Self.projects(state), machineNames: state.catalog.machineNames, reload: next != online)
     online = next
+    updateHeading()
   }
 
   override func loadView() {
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 600))
-    let heading = NSTextField(labelWithString: String(localized: "mac.newSession.title", bundle: .lodyMac))
+    heading.isBordered = false
     heading.font = .systemFont(ofSize: 22, weight: .medium)
-    heading.translatesAutoresizingMaskIntoConstraints = false
+    heading.cell?.lineBreakMode = .byTruncatingMiddle
+    heading.target = self
+    heading.action = #selector(chooseProject)
+    heading.setAccessibilityIdentifier("new-session-project-heading")
+    let mark = NSImageView(image: NSImage(systemSymbolName: "terminal", accessibilityDescription: nil) ?? NSImage())
+    mark.contentTintColor = .tertiaryLabelColor
+    mark.symbolConfiguration = .init(pointSize: 32, weight: .regular)
+    mark.setAccessibilityElement(false)
+    let introduction = NSStackView(views: [mark, heading])
+    introduction.orientation = .vertical
+    introduction.alignment = .centerX
+    introduction.spacing = 20
+    introduction.translatesAutoresizingMaskIntoConstraints = false
     addChild(composer)
     composer.view.translatesAutoresizingMaskIntoConstraints = false
     status.textColor = .secondaryLabelColor
     status.setAccessibilityIdentifier("new-session-status")
     status.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(heading)
+    root.addSubview(introduction)
     root.addSubview(composer.view)
     root.addSubview(status)
     NSLayoutConstraint.activate([
-      heading.leadingAnchor.constraint(equalTo: composer.view.leadingAnchor),
-      heading.bottomAnchor.constraint(equalTo: composer.view.topAnchor, constant: -24),
+      introduction.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+      introduction.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: -64),
+      introduction.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
+      introduction.bottomAnchor.constraint(lessThanOrEqualTo: composer.view.topAnchor, constant: -24),
       composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-      composer.view.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+      composer.view.bottomAnchor.constraint(equalTo: root.safeAreaLayoutGuide.bottomAnchor, constant: -20),
       composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: 680),
       composer.view.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -48),
       composer.view.widthAnchor.constraint(equalToConstant: 680).withPriority(.init(249)),
-      status.topAnchor.constraint(equalTo: composer.view.bottomAnchor, constant: 12),
+      status.bottomAnchor.constraint(equalTo: composer.view.topAnchor, constant: -12),
       status.centerXAnchor.constraint(equalTo: root.centerXAnchor),
     ])
     root.setAccessibilityIdentifier("new-session")
     view = root
+    updateHeading()
   }
 }

@@ -11,6 +11,7 @@ final class MacDetailController: NSViewController {
   }
 
   func show(_ controller: NSViewController?) {
+    if let controller, current === controller { return }
     current?.view.removeFromSuperview()
     current?.removeFromParent()
     let next = controller ?? MacPlaceholderController(text: String(localized: "mac.workspace.empty", bundle: .lodyMac))
