@@ -14,6 +14,8 @@ enum ChatThrowCurve {
   static let landing: (scale: CGFloat, at: Float) = (1.005, 0.71)
   static let boundsSpeed: Float = 2.0
   static let sampleRate = 120.0
+  // Without an explicit range Core Animation may pace this short throw below the ProMotion maximum.
+  static let frameRate = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
 
   struct PositionTrack {
     let points: [CGPoint]
@@ -86,6 +88,7 @@ enum ChatThrowCurve {
     position.keyTimes = track.times.map { NSNumber(value: $0 / track.duration) }
     position.calculationMode = .linear
     position.duration = track.duration
+    position.preferredFrameRateRange = frameRate
     return position
   }
 
@@ -99,6 +102,7 @@ enum ChatThrowCurve {
       CAMediaTimingFunction(controlPoints: 0.45, 0, 0.55, 1),
     ]
     scale.duration = duration
+    scale.preferredFrameRateRange = frameRate
     return scale
   }
 

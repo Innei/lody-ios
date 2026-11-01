@@ -357,6 +357,7 @@ final class ChatSendHandoff {
     background.toValue = destinationBackground.cgColor
     background.duration = duration
     background.timingFunction = ChatThrowCurve.timingFunction
+    background.preferredFrameRateRange = ChatThrowCurve.frameRate
     content.layer.add(background, forKey: "throw.background")
     for view in [content, handoff.sourceSnapshot].compactMap({ $0 }) {
       view.layer.position = CGPoint(x: destination.midX, y: destination.midY)
@@ -369,6 +370,7 @@ final class ChatSendHandoff {
     size.duration = duration
     size.speed = ChatThrowCurve.boundsSpeed
     size.timingFunction = CAMediaTimingFunction(controlPoints: 0.54195118, 0, 0.58, 1)
+    size.preferredFrameRateRange = ChatThrowCurve.frameRate
     content.layer.add(size, forKey: "throw.bounds")
     if let snapshot = handoff.sourceSnapshot {
       for (layer, from, to) in [(snapshot.layer, Float(1), Float(0)), (content.label.layer, Float(0), Float(1)), (content.disclosure.layer, Float(0), Float(1))] {
@@ -378,6 +380,7 @@ final class ChatSendHandoff {
         fade.toValue = to
         fade.duration = duration * 0.3
         fade.timingFunction = CAMediaTimingFunction(controlPoints: 0.5, 0, 0.5, 1)
+        fade.preferredFrameRateRange = ChatThrowCurve.frameRate
         layer.add(fade, forKey: "throw.opacity")
       }
     }
