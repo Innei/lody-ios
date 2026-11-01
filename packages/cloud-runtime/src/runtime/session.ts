@@ -1,3 +1,5 @@
+import type { SessionQueueRequest } from '../contract/queue.ts';
+import { mutateSessionQueue, readSessionQueue } from './session-queue.ts';
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
@@ -1495,4 +1497,44 @@ export async function respondPermission(args: {
   state.unsent.delete(key);
   if (active === state) scheduleEmit(state, 'live');
   return { state: 'accepted' as const };
+}
+
+// Explicit queue writes share the owned session and its durable dispatch watermark.
+// A lost ACK blocks further queue changes until an authoritative reconnect.
+export async function sessionQueue(args: SessionQueueRequest) {
+  const state = active;
+  if (
+    !state ||
+    state.id !== args.sessionId ||
+    !state.ready ||
+    state.status !== 'live' ||
+    state.sending
+  )
+    throw new Error('session_not_ready');
+  if (args.action === 'list')
+    return { state: 'ready' as const, items: readSessionQueue(state.doc) };
+  state.sending = true;
+  try {
+    const before = state.doc.version();
+    if (!mutateSessionQueue(state.doc, args))
+      return { state: 'stale' as const, items: readSessionQueue(state.doc) };
+    try {
+      const result = await state.client.append({
+        part: {
+          contentType: 'application/octet-stream',
+          body: encodeFrame(state.doc.export({ mode: 'update', from: before })),
+        },
+      });
+      if (!result.ok) throw new Error('queue_write_unknown');
+      await state.markDispatch(state.id, '', true);
+      scheduleEmit(state, state.status);
+      return { state: 'ready' as const, items: readSessionQueue(state.doc) };
+    } catch {
+      state.ready = false;
+      scheduleEmit(state, 'failed', 'queue_write_unknown');
+      return { state: 'unknown' as const, items: [] };
+    }
+  } finally {
+    state.sending = false;
+  }
 }

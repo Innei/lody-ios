@@ -3,7 +3,7 @@ import Foundation
 
 extension RuntimeContract {
   public static let version = 1
-  public static let runtimeMethods: [String] = ["agentRoles","archiveSession","checkTurnQuota","closeSession","controlTurn","createSession","creationOptions","deleteSession","editSession","ensureSession","fileDiff","hello","iosSimulatorControl","itemDetail","listDir","localProjects","markSessionRead","memorySettings","mentionCatalog","openSession","ping","pinSession","probeSchema","promptShortcuts","publishedShares","readFile","releaseReserve","remoteSettings","renameSession","respondPermission","restoreSessions","sendTurn","sessionPreview","sessionSharing","setActive","start","turnDiff","workspaceChanges"]
+  public static let runtimeMethods: [String] = ["agentRoles","archiveSession","checkTurnQuota","closeSession","controlTurn","createSession","creationOptions","deleteSession","editSession","ensureSession","fileDiff","hello","iosSimulatorControl","itemDetail","listDir","localProjects","markSessionRead","memorySettings","mentionCatalog","openSession","ping","pinSession","probeSchema","promptShortcuts","publishedShares","readFile","releaseReserve","remoteSettings","renameSession","respondPermission","restoreSessions","sendTurn","sessionPreview","sessionQueue","sessionSharing","setActive","start","turnDiff","workspaceChanges"]
 
   public enum AgentRoleItemVisibility: String, Codable, Sendable, Equatable, CaseIterable {
     case `private` = "private"
@@ -5104,6 +5104,289 @@ extension RuntimeContract {
     }
   }
 
+  public struct SessionQueueItem: Codable, Sendable, Equatable {
+    public var id: String
+    public var revision: String
+    public var messageId: String?
+    public var text: String
+    public var attachments: [String]
+    public var editing: Bool
+    public var editToken: String?
+    public init(id: String, revision: String, messageId: String? = nil, text: String, attachments: [String], editing: Bool, editToken: String? = nil) {
+      self.id = id
+      self.revision = revision
+      self.messageId = messageId
+      self.text = text
+      self.attachments = attachments
+      self.editing = editing
+      self.editToken = editToken
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+      self.messageId = try c.decodeIfPresent(String.self, forKey: Key("messageId"))
+      self.text = try c.decode(String.self, forKey: Key("text"))
+      self.attachments = try c.decode([String].self, forKey: Key("attachments"))
+      self.editing = try c.decode(Bool.self, forKey: Key("editing"))
+      self.editToken = try c.decodeIfPresent(String.self, forKey: Key("editToken"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+      try c.encodeIfPresent(self.messageId, forKey: Key("messageId"))
+      try c.encode(self.text, forKey: Key("text"))
+      try c.encode(self.attachments, forKey: Key("attachments"))
+      try c.encode(self.editing, forKey: Key("editing"))
+      try c.encodeIfPresent(self.editToken, forKey: Key("editToken"))
+    }
+  }
+
+  public struct SessionQueueParamsList: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public init(sessionId: String, userId: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+    }
+  }
+
+  public struct SessionQueueParamsBegin: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public var id: String
+    public var revision: String
+    public var editToken: String
+    public init(sessionId: String, userId: String, id: String, revision: String, editToken: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+      self.id = id
+      self.revision = revision
+      self.editToken = editToken
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+      self.editToken = try c.decode(String.self, forKey: Key("editToken"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+      try c.encode(self.editToken, forKey: Key("editToken"))
+    }
+  }
+
+  public struct SessionQueueParamsCancel: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public var id: String
+    public var revision: String
+    public var editToken: String
+    public init(sessionId: String, userId: String, id: String, revision: String, editToken: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+      self.id = id
+      self.revision = revision
+      self.editToken = editToken
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+      self.editToken = try c.decode(String.self, forKey: Key("editToken"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+      try c.encode(self.editToken, forKey: Key("editToken"))
+    }
+  }
+
+  public struct SessionQueueParamsSave: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public var id: String
+    public var revision: String
+    public var editToken: String
+    public var text: String
+    public init(sessionId: String, userId: String, id: String, revision: String, editToken: String, text: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+      self.id = id
+      self.revision = revision
+      self.editToken = editToken
+      self.text = text
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+      self.editToken = try c.decode(String.self, forKey: Key("editToken"))
+      self.text = try c.decode(String.self, forKey: Key("text"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+      try c.encode(self.editToken, forKey: Key("editToken"))
+      try c.encode(self.text, forKey: Key("text"))
+    }
+  }
+
+  public struct SessionQueueParamsRemove: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public var id: String
+    public var revision: String
+    public init(sessionId: String, userId: String, id: String, revision: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+      self.id = id
+      self.revision = revision
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+    }
+  }
+
+  public struct SessionQueueParamsMove: Codable, Sendable, Equatable {
+    public var sessionId: String
+    public var userId: String
+    public var id: String
+    public var revision: String
+    public var overId: String
+    public init(sessionId: String, userId: String, id: String, revision: String, overId: String) {
+      self.sessionId = sessionId
+      self.userId = userId
+      self.id = id
+      self.revision = revision
+      self.overId = overId
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.sessionId = try c.decode(String.self, forKey: Key("sessionId"))
+      self.userId = try c.decode(String.self, forKey: Key("userId"))
+      self.id = try c.decode(String.self, forKey: Key("id"))
+      self.revision = try c.decode(String.self, forKey: Key("revision"))
+      self.overId = try c.decode(String.self, forKey: Key("overId"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.sessionId, forKey: Key("sessionId"))
+      try c.encode(self.userId, forKey: Key("userId"))
+      try c.encode(self.id, forKey: Key("id"))
+      try c.encode(self.revision, forKey: Key("revision"))
+      try c.encode(self.overId, forKey: Key("overId"))
+    }
+  }
+
+  public enum SessionQueueParams: Codable, Sendable, Equatable {
+    case list(SessionQueueParamsList)
+    case begin(SessionQueueParamsBegin)
+    case cancel(SessionQueueParamsCancel)
+    case save(SessionQueueParamsSave)
+    case remove(SessionQueueParamsRemove)
+    case move(SessionQueueParamsMove)
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      let tag = try c.decode(String.self, forKey: Key("action"))
+      switch tag {
+      case "list": self = .list(try SessionQueueParamsList(from: decoder))
+      case "begin": self = .begin(try SessionQueueParamsBegin(from: decoder))
+      case "cancel": self = .cancel(try SessionQueueParamsCancel(from: decoder))
+      case "save": self = .save(try SessionQueueParamsSave(from: decoder))
+      case "remove": self = .remove(try SessionQueueParamsRemove(from: decoder))
+      case "move": self = .move(try SessionQueueParamsMove(from: decoder))
+      default: throw DecodingError.dataCorruptedError(forKey: Key("action"), in: c, debugDescription: "Unknown action \(tag)")
+      }
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      switch self {
+      case .list(let value):
+        try c.encode("list", forKey: Key("action"))
+        try value.encode(to: encoder)
+      case .begin(let value):
+        try c.encode("begin", forKey: Key("action"))
+        try value.encode(to: encoder)
+      case .cancel(let value):
+        try c.encode("cancel", forKey: Key("action"))
+        try value.encode(to: encoder)
+      case .save(let value):
+        try c.encode("save", forKey: Key("action"))
+        try value.encode(to: encoder)
+      case .remove(let value):
+        try c.encode("remove", forKey: Key("action"))
+        try value.encode(to: encoder)
+      case .move(let value):
+        try c.encode("move", forKey: Key("action"))
+        try value.encode(to: encoder)
+      }
+    }
+  }
+
+  public enum SessionQueueResultState: String, Codable, Sendable, Equatable, CaseIterable {
+    case ready = "ready"
+    case stale = "stale"
+    case unknown = "unknown"
+  }
+
+  public struct SessionQueueResult: Codable, Sendable, Equatable {
+    public var state: SessionQueueResultState
+    public var items: [SessionQueueItem]
+    public init(state: SessionQueueResultState, items: [SessionQueueItem]) {
+      self.state = state
+      self.items = items
+    }
+    public init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: Key.self)
+      self.state = try c.decode(SessionQueueResultState.self, forKey: Key("state"))
+      self.items = try c.decode([SessionQueueItem].self, forKey: Key("items"))
+    }
+    public func encode(to encoder: any Encoder) throws {
+      var c = encoder.container(keyedBy: Key.self)
+      try c.encode(self.state, forKey: Key("state"))
+      try c.encode(self.items, forKey: Key("items"))
+    }
+  }
+
   public enum SessionSharingParamsAction: String, Codable, Sendable, Equatable, CaseIterable {
     case read = "read"
     case publish = "publish"
@@ -6963,6 +7246,16 @@ extension RuntimeContract {
         return nil
       }
     }
+    public enum SessionQueue: RuntimeCall {
+      public typealias Params = RuntimeContract.SessionQueueParams
+      public typealias Result = RuntimeContract.SessionQueueResult
+      public static let method = "sessionQueue"
+      public static let timeout: Double = 45
+      public static func result(_ value: RuntimeContract.CallResult) -> Result? {
+        if case .sessionQueue(let result) = value { return result }
+        return nil
+      }
+    }
     public enum SessionSharing: RuntimeCall {
       public typealias Params = RuntimeContract.SessionSharingParams
       public typealias Result = RuntimeContract.SessionSharingResult
@@ -7076,6 +7369,7 @@ extension RuntimeContract {
     case restoreSessions(RuntimeContract.Empty)
     case sendTurn(RuntimeContract.SendTurnResult)
     case sessionPreview(RuntimeContract.SessionPreviewResult)
+    case sessionQueue(RuntimeContract.SessionQueueResult)
     case sessionSharing(RuntimeContract.SessionSharingResult)
     case setActive(RuntimeContract.Empty)
     case start(RuntimeContract.Empty)
@@ -7174,6 +7468,7 @@ extension RuntimeContract {
         case "restoreSessions": message = .result(id: id, .restoreSessions(try c.decode(RuntimeContract.Empty.self, forKey: Key("payload"))))
         case "sendTurn": message = .result(id: id, .sendTurn(try c.decode(RuntimeContract.SendTurnResult.self, forKey: Key("payload"))))
         case "sessionPreview": message = .result(id: id, .sessionPreview(try c.decode(RuntimeContract.SessionPreviewResult.self, forKey: Key("payload"))))
+        case "sessionQueue": message = .result(id: id, .sessionQueue(try c.decode(RuntimeContract.SessionQueueResult.self, forKey: Key("payload"))))
         case "sessionSharing": message = .result(id: id, .sessionSharing(try c.decode(RuntimeContract.SessionSharingResult.self, forKey: Key("payload"))))
         case "setActive": message = .result(id: id, .setActive(try c.decode(RuntimeContract.Empty.self, forKey: Key("payload"))))
         case "start": message = .result(id: id, .start(try c.decode(RuntimeContract.Empty.self, forKey: Key("payload"))))

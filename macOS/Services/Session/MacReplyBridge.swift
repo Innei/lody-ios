@@ -12,21 +12,24 @@ final class MacReplyBridge {
   private let control: SessionControl
   private var feed = SessionFeedState()
   private var pending = ""
-  private var observer: NSObjectProtocol?
+  private var observers: [NSObjectProtocol] = []
+  private let queuedBehavior: @MainActor () -> String
   var onPending: (() -> Void)?
 
   var pendingJSON: String { sender.pendingSendJSON }
 
-  init(sessionId: String, sessions: MacSessionsSource, controlRequest: @escaping SessionControl.Request = SessionControl.live) {
+  init(sessionId: String, sessions: MacSessionsSource, controlRequest: @escaping SessionControl.Request = SessionControl.live, sender injectedSender: SessionSender? = nil,
+       composerService: SessionComposerService = .live, queuedBehavior: @escaping @MainActor () -> String = { LodyPreferences.queuedMessageBehavior }) {
     self.sessionId = sessionId
     self.sessions = sessions
     control = SessionControl(request: controlRequest)
+    self.queuedBehavior = queuedBehavior
     let state = sessions.read()
-    let sender = SessionSender(
+    let sender = injectedSender ?? SessionSender(
       sessionId: sessionId, store: OutboxSession.shared.outboxStore(user: state.userId, workspace: state.workspaceId),
       services: OutboxSession.shared.services, inflight: OutboxSession.published.inflight
     )
-    let choices = SessionComposerModel(choice: nil)
+    let choices = SessionComposerModel(choice: nil, service: composerService)
     self.sender = sender
     self.choices = choices
     composer = MacComposerController(model: MacComposerModel(mode: .reply), service: MacComposerService(
@@ -44,13 +47,15 @@ final class MacReplyBridge {
     choices.changed = { [weak self] in self?.refresh() }
     control.changed = { [weak self] in self?.refresh() }
     composer.onStop = { [weak self] in self?.controlTurn("stop") }
-    observer = NotificationCenter.default.addObserver(forName: .lodyCatalogDidChange, object: nil, queue: .main) { [weak self] _ in
-      MainActor.assumeIsolated { self?.refresh() }
+    observers = [.lodyCatalogDidChange, .lodyPreferencesDidChange].map { name in
+      NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.refresh() }
+      }
     }
   }
 
   isolated deinit {
-    if let observer { NotificationCenter.default.removeObserver(observer) }
+    observers.forEach(NotificationCenter.default.removeObserver)
   }
 
   func retry() { sender.retry() }
@@ -67,6 +72,8 @@ final class MacReplyBridge {
 
   func update(_ next: SessionFeedState) {
     feed = next
+    let entries = (try? JSONSerialization.jsonObject(with: Data(next.entriesJSON.utf8))) as? [[String: Any]] ?? []
+    composer.updateQueueCount(entries.filter { $0["status"] as? String == "queued" }.count)
     refresh()
   }
 
@@ -79,7 +86,7 @@ final class MacReplyBridge {
     choices.load(workspaceId: state.workspaceId, projectId: project?.id, session: session)
     let context = OutboxForeground(
       live: live, overflow: feed.overflow, serverCreated: OutboxSession.shared.serverCreated(sessionId),
-      steerable: choices.steerable, promptBusy: OutboxDispatcher.busy.contains(session.status), transcript: feed.transcript
+      steerable: choices.steerable, promptBusy: OutboxDispatcher.busy.contains(session.status), queuedMessageBehavior: queuedBehavior(), transcript: feed.transcript
     )
     let inputs = SessionSender.Inputs(userId: state.userId, connected: state.connected && !state.loading, session: session, context: context)
     if sender.inputs != inputs { sender.update(inputs) }

@@ -293,6 +293,77 @@ extension NSView {
 }
 
 @MainActor
+final class MacQueueTests: XCTestCase {
+  func testQueueEditsKeepTheirLeaseAndOriginalAttachmentNamesUntilSaved() async throws {
+    var item = RuntimeContract.SessionQueueItem(id: "cid-one", revision: "r1", messageId: "turn-one", text: "Before", attachments: ["notes.txt"], editing: false)
+    var savedText = ""
+    let service = MacQueueService(request: { params in
+      switch params {
+      case .begin(let request):
+        XCTAssertEqual(request.id, "cid-one")
+        item.editing = true
+        item.editToken = request.editToken
+        item.revision = "r2"
+      case .save(let request):
+        XCTAssertEqual(request.revision, "r2")
+        XCTAssertEqual(request.editToken, item.editToken)
+        savedText = request.text
+        item.text = request.text
+        item.editing = false
+        item.editToken = nil
+      default: break
+      }
+      return .init(state: .ready, items: [item])
+    })
+    let model = MacQueueModel(sessionId: "session-one", userId: "u", service: service)
+    await model.reload()
+    await model.begin(try XCTUnwrap(model.items.first))
+    XCTAssertEqual(model.editing?.attachments, ["notes.txt"])
+    model.text = "After"
+    await model.save()
+    XCTAssertEqual(savedText, "After")
+    XCTAssertEqual(model.items.first?.text, "After")
+    XCTAssertEqual(model.items.first?.attachments, ["notes.txt"])
+    XCTAssertNil(model.editing)
+  }
+
+  func testAnUnknownQueueWriteBlocksFurtherMutationsUntilAnAuthoritativeReload() async throws {
+    let item = RuntimeContract.SessionQueueItem(id: "cid", revision: "r", text: "Keep", attachments: [], editing: false)
+    var mutations = 0
+    let model = MacQueueModel(sessionId: "s", userId: "u", service: .init(request: { request in
+      if case .list = request { return .init(state: .ready, items: [item]) }
+      mutations += 1
+      return .init(state: .unknown, items: [])
+    }))
+    await model.reload()
+    await model.remove(item)
+    await model.remove(item)
+    XCTAssertTrue(model.blocked)
+    XCTAssertFalse(model.error.isEmpty)
+    XCTAssertEqual(mutations, 1)
+    await model.reload()
+    XCTAssertFalse(model.blocked)
+    XCTAssertEqual(model.items.map(\.text), ["Keep"])
+  }
+
+  func testQueuePreferenceChangesReachTheActualSendContextWithoutReopeningTheSession() {
+    let state = MacFixtures.listState
+    let session = state.catalog.sessions[0]
+    let sender = SessionSender(sessionId: session.id, store: nil, services: OutboxSession.shared.services, inflight: OutboxInflight())
+    var behavior = "guide"
+    let source = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let bridge = MacReplyBridge(sessionId: session.id, sessions: source, sender: sender, queuedBehavior: { behavior })
+    var feed = SessionFeedState(status: "live")
+    feed.transcript.unfinishedTurnId = "active"
+    bridge.update(feed)
+    XCTAssertEqual(sender.inputs.context.queuedMessageBehavior, "guide")
+    behavior = "queue"
+    NotificationCenter.default.post(name: .lodyPreferencesDidChange, object: nil)
+    XCTAssertEqual(sender.inputs.context.queuedMessageBehavior, "queue")
+  }
+}
+
+@MainActor
 final class MacWorkspaceChromeTests: XCTestCase {
   func testTabTitlesAndBadgesFollowTheCatalog() {
     let name = Notification.Name("MacWorkspaceChromeTests")

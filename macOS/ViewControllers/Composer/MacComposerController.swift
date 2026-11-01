@@ -14,6 +14,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   var onReplyChoice: (([String: Any]) -> Void)?
   var onSend: (() -> Void)?
   var onStop: (() -> Void)?
+  var onQueue: (() -> Void)?
   var onProjectChange: ((_ userInitiated: Bool) -> Void)?
   var onChooseProject: (() -> Void)?
   private var inheritedMachineId: String?
@@ -58,6 +59,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view1.input.delegate = self
     view1.onSend = { [weak self] in self?.send() }
     view1.onStop = { [weak self] in self?.onStop?() }
+    view1.onQueue = { [weak self] in self?.onQueue?() }
     view1.onDropFiles = { [weak self] in self?.addFiles($0) }
     view1.input.onDropFiles = { [weak self] in self?.addFiles($0) }
     view1.input.onPasteAttachments = { [weak self] in self?.paste($0) ?? false }
@@ -106,6 +108,11 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
 
   func updateRun(_ state: SessionControl.State) {
     model.run = state
+    render()
+  }
+
+  func updateQueueCount(_ count: Int) {
+    model.queueCount = count
     render()
   }
 

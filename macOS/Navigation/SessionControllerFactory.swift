@@ -13,6 +13,7 @@ enum SessionControllerFactory {
     pane.onFeed = { [weak bridge] in bridge?.update($0) }
     pane.onStreaming = { [weak bridge] in bridge?.setStreaming($0) }
     pane.onRetry = { [weak bridge] in bridge?.retry() }
+    pane.onSteer = { [weak bridge] in bridge?.controlTurn("steer", messageId: $0) }
     pane.pendingJSON = { [weak bridge] in bridge?.pendingJSON ?? "" }
     bridge.onPending = { [weak pane] in pane?.refreshPending() }
     return pane

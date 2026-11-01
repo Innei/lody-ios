@@ -5,6 +5,7 @@ import type { Project } from '../models/catalog.ts';
 import { keepRepos, projectRows } from '../protocol/catalog.ts';
 import { mergeAgentQuotas } from '../protocol/agent-usage.ts';
 import {
+  sessionDoc,
   reservedSessionIds,
   retainedSessionIds,
   setSessionTraceSink,
@@ -118,15 +119,19 @@ async function markDispatch(sessionId: string, turnId: string, queued = false) {
   if (queued) {
     const key = ['m', `session-${sessionId}`, 'messageQueueUpdatedAt'];
     const previous = flock.get(key);
-    flock.set(
-      key,
-      Math.max(
-        Date.now(),
-        typeof previous === 'number' && Number.isFinite(previous)
-          ? previous + 1
-          : 0,
-      ),
+    const updatedAt = Math.max(
+      Date.now(),
+      typeof previous === 'number' && Number.isFinite(previous)
+        ? previous + 1
+        : 0,
     );
+    flock.set(key, updatedAt);
+    const frontiers = sessionDoc(sessionId)?.frontiers();
+    if (!frontiers) throw new Error('session_not_ready');
+    flock.set(['m', `session-${sessionId}`, 'messageQueueUpdateVersion'], {
+      updatedAt,
+      frontiers,
+    });
   } else {
     flock.set(['m', `session-${sessionId}`, 'latestUserMsgId'], turnId);
     flock.set(

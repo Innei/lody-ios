@@ -13,11 +13,13 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let modelPicker = NSButton()
   let send = NSButton()
   let stop = NSButton()
+  let queue = NSButton()
   let notice = NSTextField(labelWithString: "")
   let attach = NSButton()
   let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
   var onStop: (() -> Void)?
+  var onQueue: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private static let contextControlSize: CGFloat = 32
   private static let contextOverlap: CGFloat = 12
@@ -144,7 +146,13 @@ final class MacComposerView: NSView, MacFileDropTarget {
     stop.target = self
     stop.action = #selector(stopPressed)
     stop.setAccessibilityIdentifier("composer-stop")
-    let controls = NSStackView(views: [attach, mode, spring, modelPicker, stop, send])
+    queue.bezelStyle = .accessoryBarAction
+    queue.isBordered = false
+    queue.image = NSImage(systemSymbolName: "list.bullet", accessibilityDescription: nil)
+    queue.target = self
+    queue.action = #selector(queuePressed)
+    queue.setAccessibilityIdentifier("composer-queue")
+    let controls = NSStackView(views: [attach, mode, queue, spring, modelPicker, stop, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -264,11 +272,15 @@ final class MacComposerView: NSView, MacFileDropTarget {
     let stopTitle = String(localized: String.LocalizationValue(model.run.stopping ? "native.chat.composer.stopping" : "native.chat.composer.stop"), bundle: .lodyData)
     stop.toolTip = stopTitle
     stop.setAccessibilityLabel(stopTitle)
+    queue.isHidden = newSession || model.queueCount == 0
+    queue.title = String(model.queueCount)
+    queue.setAccessibilityLabel(String(localized: "mac.queue.title", bundle: .lodyMac))
     send.alphaValue = model.canSend ? 1 : 0.4
     needsLayout = true
   }
 
   @objc private func stopPressed() { onStop?() }
+  @objc private func queuePressed() { onQueue?() }
 
   override func layout() {
     super.layout()

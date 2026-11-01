@@ -17,6 +17,7 @@ import {
   releaseDeletedSessions,
   respondPermission,
   sendTurn,
+  sessionQueue,
 } from '../session';
 import {
   scopedShortcutCloud,
@@ -105,6 +106,20 @@ export function registerSessions(
     await renameSession(args, replica);
     republish(replica);
     return {};
+  });
+  channel.handle('sessionQueue', (args) => {
+    if (
+      args.userId !== state.userId ||
+      !state.metaReplica ||
+      state.unhealthy.size
+    )
+      throw new Error('metadata_not_ready');
+    const meta = state.metaReplica.flock.get([
+      'm',
+      `session-${args.sessionId}`,
+    ]) as Record<string, any> | undefined;
+    if (!meta || meta.isArchived) throw new Error('session_not_ready');
+    return sessionQueue(args);
   });
   channel.handle('respondPermission', respondPermission);
   channel.handle('controlTurn', controlTurn);

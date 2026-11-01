@@ -16,6 +16,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var streaming = false
   private var composerWidths: [NSLayoutConstraint] = []
   private var readingObserver: NSObjectProtocol?
+  private weak var queuePage: MacQueueController?
+  var onSteer: ((String) -> Void)?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
   func focusTranscript() { transcript.focus() }
@@ -82,6 +84,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     transcript.media = source.media
     transcript.onPreview = { [weak self] in self?.preview($0) }
     if let replies = composer as? MacComposerController {
+      replies.onQueue = { [weak self] in self?.showQueue() }
       replies.onSend = { [weak transcript] in transcript?.noteSend() }
       transcript.onDropFiles = { [weak replies] in replies?.addFiles($0) }
     }
@@ -114,6 +117,21 @@ final class MacSessionController: NSViewController, MacSessionPane {
     feed = state
     rebuild()
     onFeed?(state)
+    if let queuePage { Task { await queuePage.model.reload() } }
+  }
+
+  private func showQueue() {
+    guard queuePage == nil, let service = source.queueService else { return }
+    let model = MacQueueModel(sessionId: sessionId, userId: source.userId, service: service)
+    model.onSteer = { [weak self] in self?.onSteer?($0) }
+    model.canSteer = { [weak self] index in
+      guard let run = (self?.composer as? MacComposerController)?.model.run else { return false }
+      return run.canStop && (!run.steerInterrupts || index == 0)
+    }
+    let page = MacQueueController(model: model)
+    page.reconnect = source.reconnect
+    queuePage = page
+    presentAsSheet(page)
   }
 
   private func rebuild() {

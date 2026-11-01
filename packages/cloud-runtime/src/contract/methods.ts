@@ -1,3 +1,4 @@
+import { SessionQueueParams, SessionQueueResult } from './queue.ts';
 import { z } from 'zod/v4';
 import {
   CatalogEvent,
@@ -117,6 +118,11 @@ export type CallSpec = {
 };
 
 export const runtimeCalls = {
+  sessionQueue: {
+    params: SessionQueueParams,
+    result: SessionQueueResult,
+    timeoutMs: 45_000,
+  },
   hello: { params: HelloParams, result: HelloResult, timeoutMs: 10_000 },
   ensureSession: {
     params: EnsureSessionParams,

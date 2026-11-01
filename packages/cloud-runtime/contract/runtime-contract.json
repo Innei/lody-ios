@@ -162,6 +162,11 @@
       "result": "SessionPreviewResult",
       "timeoutMs": 330000
     },
+    "sessionQueue": {
+      "params": "SessionQueueParams",
+      "result": "SessionQueueResult",
+      "timeoutMs": 45000
+    },
     "sessionSharing": {
       "params": "SessionSharingParams",
       "result": "SessionSharingResult",
@@ -2534,6 +2539,129 @@
           "maximum": 9007199254740991
         }
       }
+    },
+    "SessionQueueItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "revision": { "type": "string" },
+        "messageId": { "type": "string" },
+        "text": { "type": "string" },
+        "attachments": { "type": "array", "items": { "type": "string" } },
+        "editing": { "type": "boolean" },
+        "editToken": { "type": "string" }
+      },
+      "required": ["id", "revision", "text", "attachments", "editing"]
+    },
+    "SessionQueueParams": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "list" }
+          },
+          "required": ["sessionId", "userId", "action"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "begin" },
+            "editToken": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "sessionId",
+            "userId",
+            "id",
+            "revision",
+            "action",
+            "editToken"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "cancel" },
+            "editToken": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "sessionId",
+            "userId",
+            "id",
+            "revision",
+            "action",
+            "editToken"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "save" },
+            "editToken": { "type": "string", "minLength": 1 },
+            "text": { "type": "string", "maxLength": 200000 }
+          },
+          "required": [
+            "sessionId",
+            "userId",
+            "id",
+            "revision",
+            "action",
+            "editToken",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "remove" }
+          },
+          "required": ["sessionId", "userId", "id", "revision", "action"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "minLength": 1 },
+            "userId": { "type": "string", "minLength": 1 },
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 },
+            "action": { "type": "string", "const": "move" },
+            "overId": { "type": "string", "minLength": 1 }
+          },
+          "required": [
+            "sessionId",
+            "userId",
+            "id",
+            "revision",
+            "action",
+            "overId"
+          ]
+        }
+      ]
+    },
+    "SessionQueueResult": {
+      "type": "object",
+      "properties": {
+        "state": { "type": "string", "enum": ["ready", "stale", "unknown"] },
+        "items": { "type": "array", "items": { "$ref": "SessionQueueItem" } }
+      },
+      "required": ["state", "items"]
     },
     "SessionSharingParams": {
       "type": "object",
