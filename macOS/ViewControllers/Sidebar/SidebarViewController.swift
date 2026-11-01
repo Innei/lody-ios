@@ -2,7 +2,7 @@ import AppKit
 import LodyData
 
 @MainActor
-final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
+final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate {
   enum Kind { case machine, project, session, gap }
 
   final class Node {
@@ -26,6 +26,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   var onOpenTab: ((String) -> Void)?
   var onOpenWindow: ((String) -> Void)?
   var onShowSettings: ((MacSettingsPage) -> Void)?
+  var onSearch: (() -> Void)?
   var onWorkspaceChange: ((SessionListState) -> Void)?
   var onVisibleSessionsChange: (() -> Void)?
   weak var actions: MacSessionActions?
@@ -34,8 +35,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   var outlineView: NSOutlineView { outline }
   private var collapsed: Set<String> = []
   private var reloading = false
-  private let search = SidebarSearchField()
-  private lazy var searchSurface = SidebarSearchSurface(field: search)
+  private let search = SidebarActionButton(title: String(localized: "mac.sidebar.search", bundle: .lodyMac), symbol: "magnifyingglass")
   private let filter = NSPopUpButton(frame: .zero, pullsDown: true)
   private let scroll = NSScrollView()
   private let empty = NSTextField(labelWithString: "")
@@ -64,14 +64,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   override func loadView() {
-    search.placeholderString = String(localized: "mac.sidebar.search", bundle: .lodyMac)
-    search.placeholderAttributedString = NSAttributedString(string: search.placeholderString ?? "", attributes: [
-      .font: SidebarRowLayout.font, .foregroundColor: NSColor.labelColor,
-    ])
     search.setAccessibilityIdentifier("sidebar-search")
-    search.delegate = self
-    search.controlSize = .regular
-    search.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    search.target = self
+    search.action = #selector(searchPressed)
     let column = NSTableColumn(identifier: .init("session"))
     outline.addTableColumn(column)
     outline.outlineTableColumn = column
@@ -123,8 +118,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     new.target = self
     new.action = #selector(newSessionPressed)
     new.setAccessibilityIdentifier("sidebar-new-session")
-    // One persistent native search field; Find only changes focus, never layout.
-    let stack = NSStackView(views: [new, searchSurface])
+    let stack = NSStackView(views: [new, search])
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 0
@@ -132,7 +126,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     new.translatesAutoresizingMaskIntoConstraints = false
     new.heightAnchor.constraint(equalToConstant: 32).isActive = true
     new.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
-    searchSurface.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
+    search.translatesAutoresizingMaskIntoConstraints = false
+    search.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    search.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
     let accessory = NSSplitViewItemAccessoryViewController()
     accessory.automaticallyAppliesContentInsets = false
     accessory.view = stack
@@ -211,10 +207,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   private func reload() {
-    searchSurface.updateValue()
     let state = source.read()
     if let projectId, !state.catalog.projects.contains(where: { $0.id == projectId }) { self.projectId = nil }
-    let model = MacSidebarModel(state: state, query: search.stringValue, projectId: projectId, archived: archived)
+    let model = MacSidebarModel(state: state, projectId: projectId, archived: archived)
     var next: [Node] = []
     for group in model.groups {
       let project = Node(id: group.id, title: group.title, children: group.rows.map(Self.node), kind: .project)
@@ -231,14 +226,13 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
       next = [Node(id: "machine:empty", title: String(localized: "mac.settings.page.projects", bundle: .lodyMac), kind: .machine)]
     }
     roots = next
-    let searching = !search.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     empty.isHidden = !model.groups.isEmpty
-    empty.stringValue = String(localized: searching || projectId != nil ? "mac.sidebar.noMatches" : "mac.sidebar.empty", bundle: .lodyMac)
+    empty.stringValue = String(localized: projectId != nil ? "mac.sidebar.noMatches" : "mac.sidebar.empty", bundle: .lodyMac)
     reloading = true
     outline.reloadData()
     for machine in roots where machine.kind == .machine {
       outline.expandItem(machine)
-      for project in machine.children where project.kind == .project && (!collapsed.contains(project.id) || searching) { outline.expandItem(project) }
+      for project in machine.children where project.kind == .project && !collapsed.contains(project.id) { outline.expandItem(project) }
     }
     reloading = false
     rebuildProjectMenu(state)
@@ -478,11 +472,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     onSelect?(row.id)
   }
 
-  func controlTextDidChange(_ obj: Notification) { reload() }
-  func controlTextDidBeginEditing(_ obj: Notification) { searchSurface.focused = true }
-  func controlTextDidEndEditing(_ obj: Notification) { searchSurface.focused = false }
-
   @objc private func newSessionPressed() { onNewSession?() }
+  @objc private func searchPressed() { focusSearch() }
 
   @objc private func chooseProject(_ sender: NSMenuItem) {
     guard let id = sender.representedObject as? String else { return }
@@ -490,10 +481,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     reload()
   }
 
-  func focusSearch() { view.window?.makeFirstResponder(search) }
+  func focusSearch() { onSearch?() }
   @objc private func toggleArchive() {
     archived.toggle()
-    search.stringValue = ""
     projectId = nil
     reload()
   }

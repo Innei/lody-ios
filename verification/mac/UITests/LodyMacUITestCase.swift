@@ -76,4 +76,17 @@ class LodyMacUITestCase: XCTestCase {
     XCTAssertTrue(item.waitForExistence(timeout: 3), "menu offers \(option)")
     item.click()
   }
+
+  func chooseProject(_ title: String) {
+    scene.popUpButtons["composer-project"].click()
+    let panel = app.windows["command-palette"]
+    let search = panel.searchFields["palette-search"]
+    XCTAssertTrue(search.waitForExistence(timeout: 3))
+    search.typeText(title)
+    let match = panel.tables["palette-results"].staticTexts[title]
+    XCTAssertTrue(match.waitForExistence(timeout: 3))
+    match.click()
+    panel.buttons["palette-primary"].click()
+    eventually("project selection closes its transient panel") { !panel.exists }
+  }
 }

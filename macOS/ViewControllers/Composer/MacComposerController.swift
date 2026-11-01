@@ -14,12 +14,16 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   var onReplyChoice: (([String: Any]) -> Void)?
   var onSend: (() -> Void)?
   var onProjectChange: ((_ userInitiated: Bool) -> Void)?
+  var onChooseProject: (() -> Void)?
   private var inheritedMachineId: String?
 
   var hasDraft: Bool { !model.text.isEmpty || !model.attachments.isEmpty }
 
   func focusInput() { view.window?.makeFirstResponder(view1.input) }
-  func showProjects() { view1.project.performClick(nil) }
+  func showProjects() {
+    if let onChooseProject { onChooseProject() }
+    else { view1.project.performClick(nil) }
+  }
 
   func selectProject(_ id: String?, machineId: String? = nil, userInitiated: Bool = true) {
     guard model.mode == .newSession else { return }
@@ -58,6 +62,11 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view1.strip.onRemove = { [weak self] in self?.removeAttachment($0.id) }
     view1.project.target = self
     view1.project.action = #selector(projectChanged)
+    view1.project.onOpen = { [weak self] in
+      guard let choose = self?.onChooseProject else { return false }
+      choose()
+      return true
+    }
     view1.machine.target = self
     view1.machine.action = #selector(machineChanged)
     view1.agent.target = self

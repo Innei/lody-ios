@@ -9,6 +9,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private var pane: MacSessionPane?
   private var newSession: NSViewController?
   private var scope: [String]
+  private var palette: MacPaletteWindowController?
   private var streaming = false
   private var sizedSidebar = false
   private var observers: [NSObjectProtocol] = []
@@ -33,6 +34,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   required init?(coder: NSCoder) { nil }
 
   isolated deinit {
+    palette?.dismiss(restoreFocus: false)
     for observer in observers { NotificationCenter.default.removeObserver(observer) }
   }
 
@@ -65,6 +67,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       })
     }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
+    sidebar.onSearch = { [weak self] in self?.findSessions(nil) }
     sidebar.onShowSettings = environment.showSettings
     sidebar.actions = actions
     sidebar.onAction = { [weak self] action, id in self?.run(action, id) }
@@ -89,7 +92,28 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   @objc func selectPreviousSession(_ sender: Any?) { step(-1) }
 
   @objc func selectNextSession(_ sender: Any?) { step(1) }
-  @objc func findSessions(_ sender: Any?) { sidebar.focusSearch() }
+  @objc func findSessions(_ sender: Any?) { showPalette(mode: .search) }
+
+  private func showPalette(mode: MacPaletteModel.Mode, draft: MacNewSessionController? = nil) {
+    guard let window = view.window else { return }
+    palette?.dismiss(restoreFocus: false)
+    let next = MacPaletteWindowController(source: environment.sessions, mode: mode, parent: window) { [weak self, weak draft] destination in
+      guard let self else { return }
+      switch destination {
+      case .chat(let id): open(id)
+      case .newChat: open(nil)
+      case .manageProjects: environment.showSettings(.projects)
+      case .project(let id):
+        if let draft { draft.selectProject(id) }
+        else { open(nil); (newSession as? MacNewSessionController)?.selectProject(id) }
+      }
+    }
+    palette = next
+    next.onDismiss = { [weak self, weak next] in
+      if self?.palette === next { self?.palette = nil }
+    }
+    next.present()
+  }
 
   private func step(_ offset: Int) {
     guard let next = sidebar.neighbor(of: sessionId, step: offset) else { return }
@@ -107,6 +131,10 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       let controller = newSession ?? environment.newSession()
       newSession = controller
       if let draft = controller as? MacNewSessionController {
+        draft.onChooseProject = { [weak self, weak draft] in
+          guard let draft else { return }
+          self?.showPalette(mode: .projects, draft: draft)
+        }
         draft.inherit(projectId: context?.projectId, machineId: context?.machineId)
         draft.onSubmit = { [weak self, weak draft] in
           if self?.newSession === draft { self?.newSession = nil }
@@ -129,6 +157,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     let state = environment.sessions.read()
     let next = [state.userId, state.workspaceId]
     if next != scope {
+      palette?.dismiss(restoreFocus: false)
       scope = next
       newSession = nil
       pane?.setStreaming(false)

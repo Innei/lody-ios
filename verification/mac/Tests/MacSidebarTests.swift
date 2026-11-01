@@ -125,7 +125,44 @@ final class MacSidebarTests: XCTestCase {
 }
 
 @MainActor
+final class MacPaletteModelTests: XCTestCase {
+  func testChatSearchMatchesBranchesAndExcludesArchivedAndChildSessions() {
+    var state = MacFixtures.listState
+    state.catalog.sessions.append(SessionItem(id: "child", title: "mac-client child", projectId: "p-ios", parentSessionId: "s-mac"))
+    let model = MacPaletteModel(state: state, mode: .search)
+    XCTAssertEqual(model.items(query: "  MAC-CLIENT  ", scope: .chats).map(\.id), ["chat:s-mac"])
+    XCTAssertTrue(model.items(query: "Archived", scope: .chats).isEmpty)
+    XCTAssertTrue(model.items(query: "child", scope: .chats).isEmpty)
+  }
+
+  func testProjectScopeDoesNotMixChatsIntoMatchingProjectNames() {
+    let model = MacPaletteModel(state: MacFixtures.listState, mode: .search)
+    XCTAssertEqual(model.items(query: "lody-ios", scope: .projects).map(\.destination), [.project("p-ios")])
+    XCTAssertEqual(Set(model.items(query: "lody-ios", scope: .chats).map(\.id)), ["chat:s-mac", "chat:s-review", "chat:s-tabs"])
+  }
+
+  func testProjectComputerFilterUsesCatalogOwnershipAndPreservesProjectFreeChat() {
+    let model = MacPaletteModel(state: MacFixtures.listState, mode: .projects)
+    XCTAssertEqual(model.items(query: "", machineId: "m-mini").map(\.destination), [.project("p-web")])
+    XCTAssertTrue(model.items(query: "").contains { $0.destination == .project(nil) })
+    XCTAssertTrue(model.items(query: "no such repository").isEmpty)
+  }
+}
+
+@MainActor
 final class MacSidebarChromeTests: XCTestCase {
+  func testAClosedPaletteCannotApplyALateSelection() {
+    let parent = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+    parent.isReleasedWhenClosed = false
+    defer { parent.close() }
+    var picked: [MacPaletteModel.Destination] = []
+    let palette = MacPaletteWindowController(source: .fixture(MacFixtures.listState), mode: .search, parent: parent) { picked.append($0) }
+    palette.present()
+    palette.dismiss()
+    palette.content.onPick?(.chat("s-mac"))
+    XCTAssertTrue(picked.isEmpty, "a queued selection from a dismissed or invalidated palette must not navigate in a new context")
+  }
+
   private func host() -> (SidebarViewController, NSWindow) {
     let workspace = MacWorkspaceController(environment: MacFixtures.environment)
     let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
@@ -148,35 +185,33 @@ final class MacSidebarChromeTests: XCTestCase {
     XCTAssertEqual(opened, 1)
   }
 
-  func testFocusingSearchKeepsTheProjectListInPlace() throws {
+  func testSearchOpensATransientPaletteWithoutFilteringTheSidebar() throws {
     let (sidebar, window) = host()
     defer { window.close() }
-    let search = try XCTUnwrap(window.contentView?.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
-    XCTAssertFalse(search.isHidden, "search is directly available without another navigation step")
-    let outline = sidebar.outlineView
-    let row = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.id == "s-mac" })
-    let before = outline.convert(outline.rect(ofRow: row), to: sidebar.view).minY
+    let before = sidebar.visibleIds
     sidebar.focusSearch()
-    window.layoutIfNeeded()
-    let after = outline.convert(outline.rect(ofRow: row), to: sidebar.view).minY
-    XCTAssertNotNil(search.currentEditor(), "the Find command focuses the existing native search field")
-    XCTAssertEqual(before, after, accuracy: 1, "focusing search must not push the project list down")
-    XCTAssertNil(MacVerifyActions.perform(.type(field: "sidebar-search", text: "Landing"), in: window))
-    XCTAssertEqual(sidebar.visibleIds, ["s-landing"])
+    let panel = try XCTUnwrap(window.childWindows?.first { $0.identifier?.rawValue == "command-palette" })
+    defer { panel.close() }
+    let field = try XCTUnwrap(panel.contentView?.descendants(NSSearchField.self).first)
+    field.stringValue = "Landing"
+    field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+    XCTAssertEqual(sidebar.visibleIds, before, "typing in search never filters the underlying navigation tree")
+    let table = try XCTUnwrap(panel.contentView?.descendants(NSTableView.self).first)
+    XCTAssertEqual(table.numberOfRows, 2, "one group header and the matching conversation")
   }
 
-  func testClearingSearchRestoresSessionsAndKeepsTheEditorFocused() throws {
+  func testDismissingSearchLeavesTheCurrentSidebarSelectionIntact() throws {
     let (sidebar, window) = host()
     defer { window.close() }
-    let search = try XCTUnwrap(window.contentView?.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    sidebar.select(sessionId: "s-review")
+    let before = sidebar.outlineView.selectedRow
     sidebar.focusSearch()
-    XCTAssertNil(MacVerifyActions.perform(.type(field: "sidebar-search", text: "Landing"), in: window))
-    XCTAssertEqual(sidebar.visibleIds, ["s-landing"])
-    let clear = try XCTUnwrap(window.contentView?.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-search-clear" })
-    clear.performClick(nil)
-    XCTAssertEqual(search.stringValue, "")
+    let panel = try XCTUnwrap(window.childWindows?.first { $0.identifier?.rawValue == "command-palette" })
+    let close = try XCTUnwrap(panel.contentView?.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "palette-close" })
+    close.performClick(nil)
+    XCTAssertTrue(window.childWindows?.isEmpty ?? true)
+    XCTAssertEqual(sidebar.outlineView.selectedRow, before)
     XCTAssertEqual(sidebar.visibleIds.count, 6)
-    XCTAssertNotNil(search.currentEditor())
   }
 
   func testMachineExpansionKeepsItsHeaderActionsLabeledCorrectly() throws {
@@ -426,8 +461,8 @@ final class MacSidebarLayoutTests: XCTestCase {
     let root = try XCTUnwrap(window.contentView)
     let new = try XCTUnwrap(root.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-new-session" })
     let newTitle = try XCTUnwrap(new.descendants(NSTextField.self).first)
-    let search = try XCTUnwrap(root.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
-    let searchRow = try XCTUnwrap(search.superview)
+    let searchRow = try XCTUnwrap(root.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    let search = try XCTUnwrap(searchRow.descendants(NSTextField.self).first)
     let expectedHeight = outline.rect(ofRow: row).height
     XCTAssertEqual(new.convert(new.bounds, to: root).minX, cell.convert(cell.bounds, to: root).minX, accuracy: 0.5)
     XCTAssertEqual(search.convert(search.bounds, to: root).minX, title.convert(title.bounds, to: root).minX, accuracy: 0.5)
@@ -443,7 +478,6 @@ final class MacSidebarLayoutTests: XCTestCase {
     }
     XCTAssertEqual(search.textColor, title.textColor)
     XCTAssertEqual(newTitle.textColor, title.textColor)
-    XCTAssertEqual(search.placeholderAttributedString?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor, title.textColor)
     XCTAssertEqual(new.frame.height, expectedHeight, accuracy: 0.5)
     XCTAssertEqual(searchRow.frame.height, expectedHeight, accuracy: 0.5)
     XCTAssertEqual(abs(new.convert(new.bounds, to: root).midY - searchRow.convert(searchRow.bounds, to: root).midY), expectedHeight, accuracy: 0.5)
@@ -474,14 +508,17 @@ final class MacSidebarLayoutTests: XCTestCase {
 @MainActor
 final class MacSidebarExpansionTests: XCTestCase {
   func testCollapsedProjectsStayCollapsedAcrossReloads() throws {
-    let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
+    let state = MacFixtures.listState
+    let changed = Notification.Name("mac-sidebar-expansion-catalog")
+    let source = MacSessionsSource(changes: [changed], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let sidebar = SidebarViewController(source: source)
     _ = sidebar.view
     let outline = sidebar.outlineView
     func project() throws -> SidebarViewController.Node {
       try XCTUnwrap((0..<outline.numberOfRows).compactMap { outline.item(atRow: $0) as? SidebarViewController.Node }.first { $0.title == "lody-ios" })
     }
     outline.collapseItem(try project())
-    sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    NotificationCenter.default.post(name: changed, object: nil)
     XCTAssertFalse(outline.isItemExpanded(try project()))
     XCTAssertFalse(sidebar.visibleIds.contains("s-mac"))
     outline.expandItem(try project())

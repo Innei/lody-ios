@@ -40,12 +40,12 @@ final class ComposerNewTests: LodyMacUITestCase {
     input.typeText("Ship the Mac sidebar")
     eventually("a draft can send") { send.isEnabled }
 
-    choose("handbook", in: scene.popUpButtons["composer-project"])
+    chooseProject("handbook")
     eventually("a project without machines blocks sending") { !send.isEnabled }
     XCTAssertEqual(value(scene.staticTexts["composer-notice"]), "No machine is online for this project")
     attach("composer-new-blocked-dark", scene)
 
-    choose("lody-ios", in: scene.popUpButtons["composer-project"])
+    chooseProject("lody-ios")
     eventually("an online project sends again") { send.isEnabled }
     input.click()
     input.typeKey(.return, modifierFlags: [])

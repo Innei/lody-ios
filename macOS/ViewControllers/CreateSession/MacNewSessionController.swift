@@ -10,6 +10,7 @@ final class MacNewSessionController: NSViewController {
   private let heading = NSButton()
   private var explicitContext = false
   var onSubmit: (() -> Void)?
+  var onChooseProject: (() -> Void)? { didSet { composer.onChooseProject = onChooseProject } }
   private var online: Set<String>
   private var observers: [NSObjectProtocol] = []
 
@@ -55,6 +56,8 @@ final class MacNewSessionController: NSViewController {
 
   func focusInput() { composer.focusInput() }
 
+  func selectProject(_ id: String?) { composer.selectProject(id); focusInput() }
+
   @objc private func chooseProject() { composer.showProjects() }
 
   private func updateHeading() {
@@ -65,6 +68,13 @@ final class MacNewSessionController: NSViewController {
     } else {
       heading.title = String(localized: "mac.newSession.chatPrompt", bundle: .lodyMac)
     }
+    let title = NSMutableAttributedString(string: heading.title, attributes: [
+      .font: NSFont.systemFont(ofSize: 22, weight: .medium), .foregroundColor: NSColor.labelColor,
+    ])
+    if !form.chat, let name, let range = heading.title.range(of: name) {
+      title.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue, range: NSRange(range, in: heading.title))
+    }
+    heading.attributedTitle = title
   }
 
   private static func projects(_ state: SessionListState) -> [CreateProject] {

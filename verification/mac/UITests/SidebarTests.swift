@@ -1,5 +1,81 @@
 import XCTest
 
+final class EntryFlowTests: LodyMacUITestCase {
+  func testSearchScopesActionsAndDismissalKeepTheUnderlyingConversation() {
+    for appearance in ["light", "dark"] {
+      open("sidebar", appearance)
+      let original = scene.title
+      scene.buttons["sidebar-search"].click()
+      let panel = app.windows["command-palette"]
+      let field = panel.searchFields["palette-search"]
+      XCTAssertTrue(field.waitForExistence(timeout: 3))
+      attach("entry-search-recent-\(appearance)")
+      field.typeText("lody-ios")
+      eventually("query leaves the current conversation untouched") { scene.title == original && panel.staticTexts["Native window tabs"].exists }
+      attach("entry-search-all-\(appearance)")
+      attach("entry-search-panel-\(appearance)", panel)
+      panel.staticTexts["Native window tabs"].hover()
+      eventually("hover moves the current action without committing it") { panel.buttons["palette-primary"].label.hasPrefix("Open chat") && scene.title == original }
+      choose("Chats", in: panel.popUpButtons["palette-filter"])
+      field.typeKey(.downArrow, modifierFlags: [])
+      attach("entry-search-results-\(appearance)")
+      app.typeKey("k", modifierFlags: .command)
+      XCTAssertTrue(app.menuItems["Open chat"].waitForExistence(timeout: 3))
+      attach("entry-search-actions-\(appearance)")
+      app.typeKey(.escape, modifierFlags: [])
+      XCTAssertTrue(panel.exists, "Escape dismisses the native Actions menu before its palette")
+      field.typeKey(.return, modifierFlags: [])
+      eventually("Return opens only the selected conversation") { !panel.exists && scene.title.hasPrefix("Catalog · Review transcript projection") }
+
+      app.typeKey("f", modifierFlags: .command)
+      XCTAssertTrue(field.waitForExistence(timeout: 3))
+      field.typeText("no matching task")
+      eventually("empty state is visible") { value(panel.staticTexts["palette-empty"]).contains("no matching task") }
+      attach("entry-search-empty-\(appearance)")
+      panel.buttons["palette-clear"].click()
+      XCTAssertTrue(panel.staticTexts["Build the AppKit sidebar"].waitForExistence(timeout: 3))
+      scene.outlines["sidebar-sessions"].cells["Review transcript projection"].click()
+      eventually("clicking outside closes search without changing the selected chat") { !panel.exists && scene.title.hasPrefix("Catalog · Review transcript projection") }
+    }
+  }
+
+  func testNewChatRetainsItsDraftAndProjectSelectionCommitsExplicitly() {
+    for appearance in ["light", "dark"] {
+      open("sidebar", appearance)
+      scene.buttons["sidebar-new-session"].click()
+      let input = scene.textViews["composer-input"]
+      XCTAssertTrue(input.waitForExistence(timeout: 3))
+      input.typeText("Keep this draft while I find another conversation")
+      scene.buttons["sidebar-new-session"].click()
+      XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
+      scene.outlines["sidebar-sessions"].cells["Landing page copy"].click()
+      scene.buttons["sidebar-new-session"].click()
+      XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
+      XCTAssertEqual(value(scene.popUpButtons["composer-project"]), "lody-ios")
+      attach("entry-new-chat-\(appearance)", scene)
+
+      scene.buttons["new-session-project-heading"].click()
+      let panel = app.windows["command-palette"]
+      let field = panel.searchFields["palette-search"]
+      XCTAssertTrue(field.waitForExistence(timeout: 3))
+      attach("entry-project-picker-\(appearance)")
+      field.typeText("no matching project")
+      eventually("project search has its own empty state") { panel.buttons["palette-clear"].exists }
+      attach("entry-project-empty-\(appearance)")
+      panel.buttons["palette-back"].click()
+      XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
+      XCTAssertEqual(value(scene.popUpButtons["composer-project"]), "lody-ios")
+      chooseProject("handbook")
+      eventually("unavailable project retains text and blocks dispatch") { !scene.buttons["composer-send"].isEnabled }
+      XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
+      attach("entry-project-unavailable-\(appearance)", scene)
+      chooseProject("Chat (no project)")
+      eventually("project-free chat uses the available machine") { scene.buttons["composer-send"].isEnabled }
+      XCTAssertEqual(value(input), "Keep this draft while I find another conversation")
+    }
+  }
+}
+
 final class SidebarTests: LodyMacUITestCase {
   private let sessionTitles = ["Build the AppKit sidebar", "Review transcript projection", "Native window tabs", "Q4 roadmap", "Landing page copy", "Deploy preview", "Archived spike"]
 
@@ -89,7 +165,7 @@ final class SidebarTests: LodyMacUITestCase {
       XCTAssertTrue(outline.waitForExistence(timeout: 5))
       XCTAssertEqual(titles(outline), Array(sessionTitles.prefix(6)))
       XCTAssertTrue(scene.buttons["sidebar-new-session"].exists)
-      XCTAssertTrue(scene.searchFields["sidebar-search"].exists)
+      XCTAssertTrue(scene.buttons["sidebar-search"].exists)
       XCTAssertTrue(scene.menuButtons["sidebar-workspace"].exists)
       XCTAssertTrue(scene.buttons["sidebar-archive"].exists)
       scene.textViews["composer-input"].click()
@@ -104,22 +180,23 @@ final class SidebarTests: LodyMacUITestCase {
     open("sidebar", "light")
     let outline = scene.outlines["sidebar-sessions"]
     app.typeKey("f", modifierFlags: .command)
-    let search = scene.searchFields["sidebar-search"]
+    let palette = app.windows["command-palette"]
+    let search = palette.searchFields["palette-search"]
     XCTAssertTrue(search.waitForExistence(timeout: 3))
     search.typeText("sidebar")
-    eventually("search filters without changing the conversation") { titles(outline) == ["Build the AppKit sidebar"] }
-    attach("sidebar-search-focus-light", scene)
+    eventually("search results leave sidebar navigation intact") { palette.staticTexts["Build the AppKit sidebar"].exists && titles(outline).count == 6 }
+    attach("sidebar-search-focus-light")
     search.typeKey("a", modifierFlags: .command)
     search.typeText("no matching task")
-    eventually("empty search explains what happened") { value(scene.staticTexts["sidebar-empty"]) == "No matching sessions" }
-    attach("sidebar-search-empty-light", scene)
+    eventually("empty search explains what happened") { value(palette.staticTexts["palette-empty"]).contains("no matching task") }
+    attach("sidebar-search-empty-light")
     search.typeKey("a", modifierFlags: .command)
     search.typeText(XCUIKeyboardKey.delete.rawValue)
-    eventually("clearing search restores projects") { titles(outline).count == 6 }
+    eventually("clearing search restores recent results") { palette.staticTexts["Build the AppKit sidebar"].exists }
     search.typeText("Landing")
-    eventually("search filters the project list") { titles(outline) == ["Landing page copy"] }
-    scene.buttons["sidebar-search-clear"].click()
-    eventually("the clear button restores sessions") { titles(outline).count == 6 }
+    eventually("search filters its own results") { palette.staticTexts["Landing page copy"].exists && titles(outline).count == 6 }
+    palette.buttons["palette-close"].click()
+    eventually("closing search returns to the original conversation") { !palette.exists && titles(outline).count == 6 }
     let filter = scene.menuButtons["sidebar-filter"]
     filter.click()
     XCTAssertTrue(app.menuItems["lody-web"].waitForExistence(timeout: 3))

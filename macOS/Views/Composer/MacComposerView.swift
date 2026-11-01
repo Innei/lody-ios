@@ -5,7 +5,7 @@ import LodyData
 
 @MainActor
 final class MacComposerView: NSView, MacFileDropTarget {
-  let project = NSPopUpButton()
+  let project = MacProjectPopUpButton()
   let machine = NSPopUpButton()
   let agent = NSPopUpButton()
   let input = MacComposerTextView()
@@ -338,6 +338,23 @@ final class MacComposerView: NSView, MacFileDropTarget {
 
   static func fileURLs(_ pasteboard: NSPasteboard) -> [URL] {
     pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+  }
+}
+
+@MainActor
+final class MacProjectPopUpButton: NSPopUpButton {
+  var onOpen: (() -> Bool)?
+  override func mouseDown(with event: NSEvent) {
+    if onOpen?() == true { return }
+    super.mouseDown(with: event)
+  }
+  override func performClick(_ sender: Any?) {
+    if onOpen?() == true { return }
+    super.performClick(sender)
+  }
+  override func accessibilityPerformPress() -> Bool {
+    if onOpen?() == true { return true }
+    return super.accessibilityPerformPress()
   }
 }
 

@@ -16,6 +16,8 @@ timeout = 1800
 [test.cases]
 sign-in = "SignInTests"
 sidebar = "SidebarTests"
+entry-flows = "EntryFlowTests"
+entry-search = "EntryFlowTests/testSearchScopesActionsAndDismissalKeepTheUnderlyingConversation"
 tabs = "TabsTests"
 transcript = "TranscriptTests"
 transcript-history = "TranscriptHistoryTests"
