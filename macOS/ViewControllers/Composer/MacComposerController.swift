@@ -159,7 +159,8 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   @objc private func showOptions() {
     if optionsPopover.isShown { optionsPopover.performClose(nil); return }
     optionsPanel.render(model)
-    optionsPopover.show(relativeTo: view1.modelPicker.bounds, of: view1.modelPicker, preferredEdge: .maxY)
+    let above: NSRectEdge = view1.modelPicker.isFlipped ? .minY : .maxY
+    optionsPopover.show(relativeTo: view1.modelPicker.bounds, of: view1.modelPicker, preferredEdge: above)
   }
 
   @objc private func choiceChanged() {

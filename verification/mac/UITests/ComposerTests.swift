@@ -56,6 +56,39 @@ final class ComposerNewTests: LodyMacUITestCase {
 }
 
 final class ComposerReplyTests: LodyMacUITestCase {
+  func testModelPickerExpandsWithoutChangingItsAnchorSide() {
+    for appearance in ["light", "dark"] {
+      open("model-picker-reference", appearance)
+      let anchor = scene.buttons["composer-model"]
+      anchor.click()
+      let panel = app.groups["composer-options-panel"]
+      XCTAssertTrue(panel.waitForExistence(timeout: 3))
+      let compact = panel.frame
+      let origin = anchor.frame
+      attach("anchor-compact-\(appearance)", panel)
+      attach("anchor-compact-desktop-\(appearance)")
+      app.buttons["composer-model-list"].click()
+      XCTAssertTrue(app.tables["composer-model-choices"].waitForExistence(timeout: 3))
+      let expanded = panel.frame
+      attach("anchor-expanded-\(appearance)", panel)
+      attach("anchor-expanded-desktop-\(appearance)")
+      app.buttons["composer-options-back"].click()
+      XCTAssertTrue(app.sliders["composer-effort-slider"].waitForExistence(timeout: 3))
+      let returned = panel.frame
+      attach("anchor-returned-desktop-\(appearance)")
+      app.buttons["composer-model-list"].click()
+      app.tables["composer-model-choices"].staticTexts["GPT-6.1 Terra"].click()
+      let selected = panel.frame
+      attach("anchor-selected-desktop-\(appearance)")
+      XCTAssertLessThanOrEqual(compact.maxY, origin.minY, "the bottom composer opens its panel above the anchor from the start")
+      XCTAssertLessThanOrEqual(expanded.maxY, origin.minY)
+      XCTAssertEqual(expanded.maxY, compact.maxY, accuracy: 1, "expanding the model list preserves the same anchored bottom edge")
+      XCTAssertEqual(returned.maxY, compact.maxY, accuracy: 1, "Back must not flip the panel below its anchor")
+      XCTAssertEqual(selected.maxY, compact.maxY, accuracy: 1, "selecting another model keeps the same anchor side")
+      app.typeKey(.escape, modifierFlags: [])
+    }
+  }
+
   func testReferenceModelPickerKeepsSelectionSeparateFromHover() {
     for appearance in ["light", "dark"] {
       open("model-picker-reference", appearance)
