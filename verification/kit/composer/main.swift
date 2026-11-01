@@ -993,15 +993,27 @@ precondition(grabberFrame.minY < 1 && grabberFrame.maxY <= glassInput.convert(gl
 let firstLine = glassInputSurface.convert(CGPoint(x: glassInputSurface.bounds.midX, y: grabberFrame.maxY + 4), to: glassComposer)
 precondition(glassComposer.hitTest(firstLine, with: nil)?.isDescendant(of: glassInput) == true,
   "A touch on the first text line must reach the text, not the grabber")
-precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0, translation: 40, velocity: 1500) == .close,
+precondition(ChatComposerView.grabberDrag(fromFullScreen: false, velocity: 300) == .collapse,
+  "A downward drag from the default sheet collapses toward the capsule")
+precondition(ChatComposerView.grabberDrag(fromFullScreen: false, velocity: -300) == .resize,
+  "An upward drag from the default sheet resizes toward full screen")
+precondition(ChatComposerView.grabberDrag(fromFullScreen: true, velocity: 900) == .resize,
+  "A downward drag from full screen only returns to the default sheet")
+precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.1, translation: 40, velocity: 1500) == .close,
   "A fast downward flick from the default sheet must close it")
-precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0, translation: 70, velocity: 0) == .close,
+precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.2, translation: 70, velocity: 0) == .close,
   "A long downward drag from the default sheet must close it")
-precondition(ChatComposerView.grabberRelease(fromFullScreen: true, progress: 0.8, translation: 40, velocity: 1500) == .sheet,
+precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.05, translation: 20, velocity: 100) == .sheet,
+  "A short slow collapse drag springs back to the sheet")
+precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.1, translation: 30, velocity: -900) == .sheet,
+  "Flicking back up during a collapse returns to the sheet, never full screen")
+precondition(ChatComposerView.grabberRelease(.resize, progress: 0.8, translation: 40, velocity: 1500) == .sheet,
   "A fast downward flick from full screen returns to the default sheet")
-precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0.2, translation: -30, velocity: -900) == .fullScreen,
+precondition(ChatComposerView.grabberRelease(.resize, progress: 0, translation: 120, velocity: 1500) == .sheet,
+  "A resize drag never closes the sheet")
+precondition(ChatComposerView.grabberRelease(.resize, progress: 0.2, translation: -30, velocity: -900) == .fullScreen,
   "A fast upward flick opens full screen")
-precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0.6, translation: -100, velocity: 0) == .fullScreen,
+precondition(ChatComposerView.grabberRelease(.resize, progress: 0.6, translation: -100, velocity: 0) == .fullScreen,
   "Releasing past halfway opens full screen")
 precondition(!descendants(glassComposer).contains { $0.accessibilityIdentifier == "session-expand" }, "The grabber replaces the expand button")
 let glassFormat = descendants(glassComposer).compactMap { $0 as? ChatComposerFormatBar }.first!
@@ -1017,6 +1029,30 @@ RunLoop.current.run(until: Date().addingTimeInterval(0.6))
 glassComposer.layoutIfNeeded()
 precondition(glassFormat.bounds.height < 0.5 && grabber!.accessibilityLabel == String(localized: "native.chat.composer.expand", bundle: .lody),
   "Activating the grabber again must return to the default sheet")
+let sheetSurface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+let sheetInputHeight = glassInput.bounds.height
+glassComposer.setCollapseProgress(0.5)
+glassComposer.layoutIfNeeded()
+let halfSurface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+precondition(halfSurface.minX > 1 && halfSurface.minX < 19 && halfSurface.maxX < glassComposer.bounds.maxX - 1,
+  "Halfway through a collapse the sheet must be partly inset toward the capsule; got \(halfSurface)")
+precondition(glassInput.bounds.height > 48.5 && glassInput.bounds.height < sheetInputHeight - 0.5,
+  "Halfway through a collapse the text area must be between the capsule and the sheet; got \(glassInput.bounds.height)")
+precondition(grabber!.alpha > 0.01 && grabber!.alpha < 0.99 && !grabber!.isHidden,
+  "The grabber fades during a collapse but stays in the hierarchy so the drag keeps tracking")
+glassComposer.setCollapseProgress(1)
+glassComposer.layoutIfNeeded()
+let collapsedSurface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+precondition(abs(collapsedSurface.minX - 20) < 0.5 && abs(glassComposer.bounds.maxX - collapsedSurface.maxX - 20) < 0.5
+  && abs(collapsedSurface.height - 48) < 0.5 && abs(glassComposer.bounds.maxY - collapsedSurface.maxY - 8) < 0.5,
+  "A fully collapsed sheet must already match the resting capsule so closing does not jump; got \(collapsedSurface)")
+precondition(glassModel.alpha < 0.01, "The sheet toolbar is gone once collapsed")
+glassComposer.setCollapseProgress(0)
+glassComposer.layoutIfNeeded()
+let restoredSurface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+precondition(restoredSurface == sheetSurface && abs(glassInput.bounds.height - sheetInputHeight) < 0.5 && grabber!.alpha > 0.99 && glassModel.alpha > 0.99,
+  "Cancelling a collapse must restore the sheet exactly; got \(restoredSurface) vs \(sheetSurface)")
+print("Composer collapse: the sheet shrinks continuously into the resting capsule and restores on cancel")
 glassComposer.allowsFullScreen = false
 glassComposer.layoutIfNeeded()
 precondition(grabber!.isHidden, "Hosts without full screen have no grabber")

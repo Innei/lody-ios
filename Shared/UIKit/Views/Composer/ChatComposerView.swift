@@ -622,6 +622,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var dragProgress: CGFloat?
   private var dragStart: CGFloat = 0
   private var dragDistance: CGFloat = 1
+  private var dragMode: GrabberDrag = .resize
+  private var collapseProgress: CGFloat = 0
+  private var collapseDistance: CGFloat = 1
+  private var collapseStartOffset: CGFloat = 0
   private lazy var formatBar = ChatComposerFormatBar(editor: input.editor)
   private var formatHeight: NSLayoutConstraint!
   private let fullScreenDim = UIView()
@@ -1309,13 +1313,60 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState], animations: changes, completion: finish)
   }
   enum GrabberRelease { case close, sheet, fullScreen }
-  static func grabberRelease(fromFullScreen: Bool, progress: CGFloat, translation: CGFloat, velocity: CGFloat) -> GrabberRelease {
-    if !fromFullScreen && translation > 0 && (translation > 60 || velocity > 600) && velocity >= 0 { return .close }
+  enum GrabberDrag { case resize, collapse }
+  static func grabberDrag(fromFullScreen: Bool, velocity: CGFloat) -> GrabberDrag {
+    !fromFullScreen && velocity > 0 ? .collapse : .resize
+  }
+  static func grabberRelease(_ drag: GrabberDrag, progress: CGFloat, translation: CGFloat, velocity: CGFloat) -> GrabberRelease {
+    if drag == .collapse {
+      return velocity >= 0 && (translation > 60 || velocity > 600) ? .close : .sheet
+    }
     if abs(velocity) > 600 { return velocity < 0 ? .fullScreen : .sheet }
     return progress > 0.5 ? .fullScreen : .sheet
   }
+  func setCollapseProgress(_ progress: CGFloat) {
+    collapseProgress = min(1, max(0, progress))
+    updateComposer()
+  }
   private func dragGrabber(_ pan: UIPanGestureRecognizer) {
     guard let superview, allowsFullScreen, input.isFirstResponder else { return }
+    if pan.state == .began {
+      dragMode = Self.grabberDrag(fromFullScreen: fullScreen, velocity: pan.velocity(in: superview).y)
+    }
+    if dragMode == .collapse {
+      dragCollapse(pan)
+    } else {
+      dragResize(pan, in: superview)
+    }
+  }
+  private func dragCollapse(_ pan: UIPanGestureRecognizer) {
+    let translation = pan.translation(in: self).y
+    let follows = window != nil && !UIAccessibility.isReduceMotionEnabled
+    switch pan.state {
+    case .began:
+      guard follows else { return }
+      let keyboard = keyboardLayoutGuide.layoutFrame
+      collapseDistance = max(80, keyboard.height - safeAreaInsets.bottom)
+      collapseStartOffset = input.contentOffset.y
+      grabber.followKeyboard(fromTouchY: pan.location(in: self).y, keyboardTop: keyboard.minY) { translation, velocity in
+        Self.grabberRelease(.collapse, progress: 0, translation: translation, velocity: velocity) == .sheet
+      }
+    case .changed:
+      guard follows else { return }
+      setCollapseProgress(translation / collapseDistance)
+      layoutIfNeeded()
+    default:
+      grabber.releaseKeyboard()
+      let release = Self.grabberRelease(.collapse, progress: collapseProgress, translation: translation, velocity: pan.velocity(in: self).y)
+      if release == .close && input.resignFirstResponder() { return }
+      guard follows else { return }
+      UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+        self.setCollapseProgress(0)
+        (self.window ?? self).layoutIfNeeded()
+      }
+    }
+  }
+  private func dragResize(_ pan: UIPanGestureRecognizer, in superview: UIView) {
     let translation = pan.translation(in: superview).y
     switch pan.state {
     case .began:
@@ -1338,13 +1389,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       let velocity = pan.velocity(in: superview).y
       let progress = dragProgress ?? dragStart
       dragProgress = nil
-      let release = Self.grabberRelease(fromFullScreen: dragStart == 1, progress: progress, translation: translation, velocity: velocity)
-      if release == .close {
-        fullScreenDim.removeFromSuperview()
-        input.resignFirstResponder()
-        return
-      }
-      let target = release == .fullScreen
+      let target = Self.grabberRelease(.resize, progress: progress, translation: translation, velocity: velocity) == .fullScreen
       fullScreen = target
       updateComposer()
       let settle = {
@@ -1424,10 +1469,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     #endif
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
     attachmentBar.render(attachments)
+    if !expanded { collapseProgress = 0 }
+    let collapse = collapseProgress
+    let sheetShare = 1 - collapse
     attachmentBar.isHidden = !expanded
+    attachmentBar.alpha = sheetShare
     let showsAttachmentRow = expanded && attachmentBar.hasVisiblePills
-    attachmentHeight.constant = showsAttachmentRow ? 48 : 0
-    attachmentTop.constant = showsAttachmentRow ? 12 : 0
+    attachmentHeight.constant = showsAttachmentRow ? 48 * sheetShare : 0
+    attachmentTop.constant = showsAttachmentRow ? 12 * sheetShare : 0
     attachmentStack.render(attachments)
     attachmentStack.isHidden = expanded || attachments.isEmpty
     hint.text = attachments.isEmpty ? state.placeholder : String(localized: "native.chat.composer.addMessage", bundle: .lody)
@@ -1449,7 +1498,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.render(actionMode)
     sendVisual.isHidden = false
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
-    send.isHidden = !expanded && !hasContent && !stop && !loading
+    let restingHidesSend = !hasContent && !stop && !loading
+    send.isHidden = !expanded && restingHidesSend
+    send.alpha = restingHidesSend ? sheetShare : 1
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     queueHeight.constant = queueView.panelHeight
     let replies = quickRepliesAvailable ? (state.quickReplies ?? []) : []
@@ -1485,33 +1536,36 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     let showsGrabber = expanded && allowsFullScreen
     grabber.isHidden = !showsGrabber
-    grabberHeight.constant = showsGrabber ? ChatComposerGrabber.height : 0
+    grabber.alpha = sheetShare
+    grabberHeight.constant = showsGrabber ? ChatComposerGrabber.height * sheetShare : 0
     grabber.accessibilityLabel = String(localized: String.LocalizationValue(fullScreen ? "native.chat.composer.collapse" : "native.chat.composer.expand"), bundle: .lody)
     let fullProgress = dragProgress ?? (fullScreen ? 1 : 0)
-    accessoryHeight.constant = expanded ? 48 : 0
-    attachLeading.constant = expanded ? 8 : 2
-    sheetContentBottom.constant = expanded ? -ChatComposerLiquidGlassSurfaceLayout.sheetBleed : 0
+    let toolbarShare = max(0, 1 - collapse * 2)
+    for button in [modelButton, permissionButton, mentionButton] { button.alpha = toolbarShare }
+    accessoryHeight.constant = expanded ? 48 * sheetShare : 0
+    attachLeading.constant = expanded ? 8 - 6 * collapse : 2
+    sheetContentBottom.constant = expanded ? -ChatComposerLiquidGlassSurfaceLayout.sheetBleed * sheetShare : 0
     formatHeight.constant = 44 * fullProgress
     formatBar.alpha = fullProgress
     formatBar.isHidden = fullProgress == 0
     formatBar.accessibilityElementsHidden = !fullScreen
-    let verticalInset = expanded ? 14 : max(0, (48 - input.font!.lineHeight) / 2)
-    let topInset = showsGrabber ? 4 : verticalInset
-    var leadingInset: CGFloat = 20
-    if !expanded {
-      leadingInset = attachmentStack.isHidden ? 46 : 46 + attachmentStack.stackWidth + 8
-    }
+    let restingVertical = max(0, (48 - input.font!.lineHeight) / 2)
+    let restingLeading: CGFloat = attachments.isEmpty ? 46 : 46 + attachmentStack.stackWidth + 8
+    let restingTrailing: CGFloat = restingHidesSend ? 16 : 46
+    let verticalInset = expanded ? 14 + (restingVertical - 14) * collapse : restingVertical
+    let topInset = showsGrabber ? 4 + (restingVertical - 4) * collapse : verticalInset
+    let leadingInset = expanded ? 20 + (restingLeading - 20) * collapse : restingLeading
     input.textContainer.maximumNumberOfLines = expanded ? 0 : 1
     input.textContainer.lineBreakMode = expanded ? .byWordWrapping : .byTruncatingTail
-    var trailingInset: CGFloat = send.isHidden ? 16 : 46
-    if expanded { trailingInset = 20 }
+    let trailingInset = expanded ? 20 + (restingTrailing - 20) * collapse : restingTrailing
     input.textContainerInset = UIEdgeInsets(top: topInset, left: leadingInset, bottom: verticalInset, right: trailingInset)
     hintLeading.constant = leadingInset + 5
     hintTop.constant = topInset
     let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
     let overflows = height > ChatMessageContent.maximumCollapsedHeight
-    let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentTop.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + grabberHeight.constant + (expanded ? 8 : 16)
-    let inlineHeight = expanded ? min(ChatMessageContent.maximumCollapsedHeight, max(132, height)) : 48
+    let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentTop.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + grabberHeight.constant + (expanded ? 8 + 8 * collapse : 16)
+    let sheetHeight = min(ChatMessageContent.maximumCollapsedHeight, max(132, height))
+    let inlineHeight = expanded ? sheetHeight + (48 - sheetHeight) * collapse : 48
     if fullProgress > 0 {
       let fullHeight = fullScreenInputHeight(chrome: chrome - formatHeight.constant + 44)
       dragDistance = max(1, fullHeight + 44 - inlineHeight)
@@ -1520,8 +1574,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       dragDistance = max(1, fullScreenInputHeight(chrome: chrome + 44) + 44 - inlineHeight)
       inputHeight.constant = inlineHeight
     }
-    input.isScrollEnabled = expanded && (fullProgress > 0 || overflows)
+    input.isScrollEnabled = expanded && collapse == 0 && (fullProgress > 0 || overflows)
     if !expanded { input.contentOffset = .zero }
+    if collapse > 0 { input.contentOffset.y = collapseStartOffset * sheetShare }
+    if expanded { surfaceLayout.update(collapse: collapse) }
     updateComposerOptions()
     onHeightChange?(chrome + inputHeight.constant)
     setNeedsLayout()

@@ -1,5 +1,7 @@
-"""The sheet's grabber drags the chat input to full screen with a format bar, back down, and closes the sheet."""
+"""The sheet's grabber drags the chat input to full screen with a format bar, back down, and collapses the sheet with the keyboard following."""
 import sys
+import threading
+import time
 from driver import UI
 
 ui = UI(*sys.argv[1:])
@@ -61,8 +63,42 @@ ui.wait(lambda items: not visible('composer-format-bold') and not (ui.element('s
         'Send did not collapse and clear the full-screen input')
 ui.capture('sent')
 
+def keyboard_top():
+    keyboard = ui.visible_keyboard(ui.state())
+    return keyboard['y'] if keyboard else None
+
+
+resting_keyboard = keyboard_top()
+assert resting_keyboard, 'The software keyboard must be up before collapsing the sheet'
+sheet = frame('session-input')
+title = frame('chat-navigation-title')
 grip = frame('session-grabber')
-drag_grabber(grip['y'] + 220, duration='.4')
-ui.wait(lambda items: abs(frame('session-input')['height'] - 48) <= 1, 'Dragging the default sheet down did not close it')
+drag_grabber(grip['y'] + 30, duration='1.2')
+ui.wait(lambda items: abs(frame('session-input')['height'] - sheet['height']) <= 1 and (keyboard_top() or 0) == resting_keyboard,
+        'A short slow collapse drag must spring back to the sheet with the keyboard up')
+ui.capture('collapse-cancelled')
+
+grip = frame('session-grabber')
+x = grip['x'] + grip['width'] / 2
+y = grip['y'] + grip['height'] / 2
+finger_end = y + 160
+assert finger_end < resting_keyboard, 'The collapse drag must stay above the resting keyboard to prove it follows from the start'
+drag = threading.Thread(target=ui.axe, args=('swipe', '--start-x', str(x), '--start-y', str(y), '--end-x', str(x), '--end-y', str(finger_end),
+                                             '--duration', '4', '--delta', '2'))
+resting_bottom = sheet['y'] + sheet['height']
+drag.start()
+time.sleep(2.2)
+mid_input = frame('session-input')
+mid_title = frame('chat-navigation-title')
+ui.capture('collapse-midway')
+drag.join()
+# The keyboard renders out of process and its accessibility frame lags an interactive drag; the composer is pinned to its top edge.
+mid_bottom = mid_input['y'] + mid_input['height']
+assert mid_bottom > resting_bottom + 30, \
+    f'The keyboard must follow the grabber before the finger reaches it; composer bottom resting {resting_bottom}, midway {mid_bottom}'
+assert abs(mid_title['y'] - title['y']) <= 1, f'A collapse drag must not drag the hosting sheet; title {title}, midway {mid_title}'
+assert 48 < mid_input['height'] < sheet['height'] - 10, f'The input must shrink with the drag; sheet {sheet}, midway {mid_input}'
+ui.wait(lambda items: abs(frame('session-input')['height'] - 48) <= 1 and not ui.visible_keyboard(items),
+        'Releasing a collapse drag must land on the capsule with the keyboard down')
 ui.capture('closed')
-print('PASS: grabber drag to full screen with format bar, drag back, tap toggle, send collapse, and drag-down close')
+print('PASS: grabber drag to full screen with format bar, drag back, tap toggle, send collapse, cancelled collapse, and keyboard-following collapse')

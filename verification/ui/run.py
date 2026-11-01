@@ -35,7 +35,7 @@ SUITES = {
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'session-search-pad', 'wide-panel', 'pad-layout']
-CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'devices', 'workspace-general', 'morph', 'sheet-zoom-project', 'mentions-production']
+CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'devices', 'workspace-general', 'morph', 'sheet-zoom-project', 'mentions-production', 'composer-fullscreen']
 HOME_CASES = {'home-states', 'home-project-bar', 'home-project-index', 'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout', 'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'}
 PREVIEW = {
     'role-mention-chat': 'mention-chat',
@@ -157,7 +157,7 @@ PREVIEW = {
     'composer-success': 'composer-success',
     'composer-failure': 'composer-failure',
     'composer-rich': 'composer-preview',
-    'composer-fullscreen': 'composer-success',
+    'composer-fullscreen': 'send-preview',
     'inbox': 'inbox-preview',
     'onboarding': 'onboarding-preview',
     'community-notice': 'community-notice',

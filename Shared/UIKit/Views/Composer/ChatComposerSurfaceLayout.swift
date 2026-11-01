@@ -4,6 +4,7 @@ import UIKit
 protocol ChatComposerSurfaceLayout: AnyObject {
   func activate()
   func update(isFocused: Bool)
+  func update(collapse progress: CGFloat)
   func completeTransition()
 }
 
