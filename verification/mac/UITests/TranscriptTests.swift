@@ -14,11 +14,12 @@ final class TranscriptTests: LodyMacUITestCase {
       XCTAssertEqual(prose.count, 1)
       XCTAssertTrue(value(prose.element(boundBy: 0)).hasPrefix("I'll add an NSOutlineView source list:"), "assistant prose renders as Markdown")
       XCTAssertTrue(scene.staticTexts["Allow this action?"].exists)
-      XCTAssertTrue(scene.buttons["Allow"].isEnabled, "the permission card offers Allow")
+      XCTAssertTrue(scene.radioButtons["permission-option-0"].isEnabled, "the permission card offers Allow")
       attach("transcript-\(appearance)", scene)
     }
-    scene.buttons["Allow"].click()
-    eventually("the permission card goes away") { !scene.buttons["Allow"].exists }
+    scene.radioButtons["permission-option-0"].click()
+    scene.buttons["permission-continue"].click()
+    eventually("the permission card goes away") { !scene.buttons["permission-continue"].exists }
     eventually("the reply after approval renders") { prose.count == 2 }
     XCTAssertTrue(value(prose.element(boundBy: 1)).hasPrefix("Approved. The sidebar now groups sessions by project"))
     attach("transcript-answered-dark", scene)

@@ -51,11 +51,14 @@ final class MacInterruptionOption: NSView {
 @MainActor
 final class MacQuestionView: NSStackView, NSTextFieldDelegate {
   var onAction: ((MacQuestionAction) -> Void)?
+  var onReject: (() -> Void)?
+  var rejectTitle = "" { didSet { skip.title = rejectTitle; skip.isHidden = rejectTitle.isEmpty } }
   private var draft: MacQuestionDraft?
   private var options: [MacInterruptionOption] = []
   private var custom: NSTextField?
   private let pages = NSSegmentedControl()
   private let submit = NSButton()
+  private let skip = NSButton()
 
   init() {
     super.init(frame: .zero)
@@ -63,6 +66,11 @@ final class MacQuestionView: NSStackView, NSTextFieldDelegate {
     alignment = .leading
     spacing = 12
     setHuggingPriority(.init(1), for: .horizontal)
+    skip.isBordered = false
+    skip.isHidden = true
+    skip.target = self
+    skip.action = #selector(rejected)
+    skip.setAccessibilityIdentifier("question-skip")
     submit.bezelStyle = .rounded
     submit.controlSize = .large
     submit.target = self
@@ -75,6 +83,7 @@ final class MacQuestionView: NSStackView, NSTextFieldDelegate {
     draft = next
     if rebuild { build(next) }
     pages.isEnabled = enabled
+    skip.isEnabled = enabled
     pages.selectedSegment = next.page
     for (index, row) in options.enumerated() { row.update(selected: next.current.selected.contains(index), enabled: enabled) }
     custom?.isEnabled = enabled
@@ -136,10 +145,11 @@ final class MacQuestionView: NSStackView, NSTextFieldDelegate {
       field.heightAnchor.constraint(equalToConstant: 32).isActive = true
       custom = field
     }
-    add(NSStackView(views: [NSView(), submit]))
+    add(NSStackView(views: [NSView(), skip, submit]))
   }
   private func add(_ child: NSView) { addArrangedSubview(child); child.widthAnchor.constraint(equalTo: widthAnchor).isActive = true }
   func controlTextDidChange(_ obj: Notification) { onAction?(.text(custom?.stringValue ?? "")) }
+  @objc private func rejected() { if skip.isEnabled { onReject?() } }
   @objc private func submitted() {
     guard let draft, submit.isEnabled else { return }
     if draft.page < draft.meta.questions.count - 1 { onAction?(.page(draft.page + 1)) }

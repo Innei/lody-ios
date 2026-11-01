@@ -31,7 +31,7 @@ enum DebugSceneFactory {
       ]
     }
     return [
-      Scene(id: "core-parity", title: "Core features", size: NSSize(width: 980, height: 820), make: { MacCoreFixture.controller() }),
+      Scene(id: "core-parity", title: "Core features", windows: { MacCoreFixture.windows() }),
       Scene(id: "core-draft", title: "Durable drafts", size: NSSize(width: 860, height: 480), make: { MacCoreDraftController() }),
       Scene(id: "sign-in", title: "Sign in") { [signInWindow(code: nil, title: "Sign in")] },
       Scene(id: "sign-in-code", title: "Sign in · device code") { [signInWindow(code: "WXYZ-1234", title: "Sign in · device code")] },
@@ -44,9 +44,9 @@ enum DebugSceneFactory {
       Scene(id: "transcript-history", title: "Transcript · long history") { MacFixtures.workspaceWindow(sessionId: "s-mac", history: 1000) },
       Scene(id: "transcript-media", title: "Transcript · images and files") { MacFixtures.workspaceWindow(sessionId: "s-mac", media: true) },
       Scene(id: "transcript-history-10k", title: "Transcript · 10,000 entries") { MacFixtures.workspaceWindow(sessionId: "s-mac", history: 10000) },
-      Scene(id: "attachments", title: "Composer · attachments") { MacFixtures.workspaceWindow(sessionId: "s-mac", attachments: true) },
+      Scene(id: "attachments", title: "Composer · attachments") { MacFixtures.workspaceWindow(sessionId: "s-mac", attachments: true, approval: false) },
       Scene(id: "composer-new", title: "Composer · new session") { MacFixtures.workspaceWindow(sessionId: nil) },
-      Scene(id: "composer-reply", title: "Composer · reply") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
+      Scene(id: "composer-reply", title: "Composer · reply") { MacFixtures.workspaceWindow(sessionId: "s-mac", approval: false) },
       Scene(id: "model-picker-a", title: "Model picker · same panel") { MacModelPickerStudy.windows("a") },
       Scene(id: "model-picker-b", title: "Model picker · two levels") { MacModelPickerStudy.windows("b") },
       Scene(id: "model-picker-c", title: "Model picker · native pop-up") { MacModelPickerStudy.windows("c") },

@@ -57,27 +57,17 @@ struct MacTranscriptModel {
   var groups: [String: String] = [:]
   var streaming = Set<String>()
   var permission: SessionPermission?
-  var changedFiles: [String: [MacChangedFile]] = [:]
 
   struct Parsed {
     let json: String
     let entries: [ChatEntry]?
     let permission: SessionPermission?
-    let changedFiles: [String: [MacChangedFile]]
 
     init(_ json: String) {
       self.json = json
       let data = Data(json.utf8)
       entries = try? JSONDecoder().decode([ChatEntry].self, from: data)
       let raw = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []
-      changedFiles = Dictionary(raw.compactMap { entry in
-        guard let id = entry["id"] as? String else { return nil }
-        let files = SessionEnvelope.changedFiles(entry).compactMap { file -> MacChangedFile? in
-          guard let path = file["path"] as? String else { return nil }
-          return MacChangedFile(path: path, add: file["add"] as? Int ?? 0, del: file["del"] as? Int ?? 0)
-        }
-        return (id, files)
-      }, uniquingKeysWith: { _, last in last })
       permission = entries == nil ? nil : try? SessionPermission.first(in: raw)
     }
   }
@@ -89,7 +79,6 @@ struct MacTranscriptModel {
   init(parsed: Parsed, pendingJSON: String = "") {
     guard let entries = parsed.entries else { return }
     permission = parsed.permission
-    changedFiles = parsed.changedFiles
     let transcript = ChatTranscript(entries: entries)
     var rows = transcript.rows()
     if let pending = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(pendingJSON.utf8)) {

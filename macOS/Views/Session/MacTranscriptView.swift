@@ -9,12 +9,6 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   private let table = CKTranscriptTable()
   private var scroll: NSScrollView { table.scrollView }
   private var items: [String: MacTranscriptItem] = [:]
-  private var renderedCard: MacPermissionFlow.Card?
-  private var cardVersion = 0
-  var onQuestion: ((MacQuestionAction) -> Void)?
-  var onChanges: ((_ entryId: String, _ files: [MacChangedFile]) -> Void)?
-  private var changes: [String: (String, [MacChangedFile])] = [:]
-  var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
   var onDropFiles: (([URL]) -> Void)?
@@ -22,7 +16,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
 
   var rowViews: [NSView] {
     table.layoutSubtreeIfNeeded()
-    return table.instantiatedContentViews.filter { !($0 is MacPermissionCard || $0 is CKHistoryHeaderView) }
+    return table.instantiatedContentViews.filter { !($0 is CKHistoryHeaderView) }
   }
 
   var reading = MacReading.current() {
@@ -81,25 +75,14 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     return true
   }
 
-  func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {
-    if card != renderedCard {
-      renderedCard = card
-      cardVersion += 1
-    }
+  func render(_ model: MacTranscriptModel) {
     let arrived = model.items.filter { ["user", "attachments"].contains($0.kind) && items[$0.id] == nil }.map(\.id)
     items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    changes = Dictionary(model.items.filter { $0.kind == "changes" }.map { item in
-      let entry = model.groups[item.id] ?? item.id
-      return (item.id, (entry, model.changedFiles[entry] ?? []))
-    }, uniquingKeysWith: { _, last in last })
-    var rows = model.items.map { item in
+    let rows = model.items.map { item in
       CKTranscriptRow(
         id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue,
         group: model.groups[item.id] ?? item.id, deferrable: model.streaming.contains(item.id)
       )
-    }
-    if card != nil {
-      rows.append(CKTranscriptRow(id: Self.cardID, kind: "permission", neighbourKey: "permission", version: cardVersion, group: Self.cardID))
     }
     table.apply(rows)
     if let sent = arrived.first { table.anchor(rowID: sent) }
@@ -110,16 +93,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     return scroll.contentView.bounds.maxY - scroll.contentInsets.bottom >= document.frame.height - 24
   }
 
-  private static let cardID = "permission-card"
-
   private func cell(for row: CKTranscriptRow, reused: NSView?) -> NSView {
-    if row.id == Self.cardID, let card = renderedCard {
-      let view = (reused as? MacPermissionCard) ?? MacPermissionCard(card: card)
-      view.update(card)
-      view.onQuestion = { [weak self] in self?.onQuestion?($0) }
-      view.onAnswer = { [weak self] in self?.onAnswer?($0) }
-      return view
-    }
     guard let item = items[row.id] else { return reused ?? NSView() }
     if case .prose(_, let markdown) = item, let view = reused as? MacMarkdownView, view.size == reading.textSize {
       view.update(markdown)
@@ -142,17 +116,8 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     case .plan(_, let markdown): return MacPlanView(markdown: markdown, size: reading.textSize)
     case .activity(_, let symbol, let text, let attention, let running):
       return MacActivityLine(symbol: symbol, text: text, attention: attention, running: running)
-    case .changes(let id, let text):
-      let button = MacActionButton(title: text) { [weak self] in
-        guard let self, let target = changes[id] else { return }
-        onChanges?(target.0, target.1)
-      }
-      button.isBordered = false
-      button.alignment = .left
-      button.image = NSImage(systemSymbolName: "plusminus", accessibilityDescription: nil)
-      button.font = .systemFont(ofSize: 12)
-      button.setAccessibilityIdentifier("transcript-changes")
-      return button
+    case .changes(_, let text):
+      return MacActivityLine(symbol: "plus.forwardslash.minus", text: text, attention: false, running: false)
     case .notice(_, let text):
       let label = NSTextField(wrappingLabelWithString: text)
       label.textColor = .systemRed

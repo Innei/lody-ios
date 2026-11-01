@@ -10,7 +10,6 @@ final class MacCoreFixture {
   private var answered = false
   private var running = true
   private var steered = false
-  private var retryCount = 0
   private var version = 1
   private var queue: [RuntimeContract.SessionQueueItem] = [
     .init(id: "q-one", revision: "1", messageId: "next-one", text: "Add keyboard navigation", attachments: ["notes.txt"], editing: false),
@@ -18,16 +17,41 @@ final class MacCoreFixture {
     .init(id: "q-three", revision: "1", messageId: "next-three", text: "Run the focused checks", attachments: [], editing: false),
   ]
   private var catalog = MacFixtures.listState
-  private var bridge: MacReplyBridge?
+  private weak var bridge: MacReplyBridge?
 
-  static func controller() -> NSViewController {
+  init() {
+    catalog.userId = "u-core-fixture"
+    catalog.catalog.sessions[0].cliType = "builtin"
+  }
+
+  private let catalogChanged = Notification.Name("CoreFixtureCatalog-" + UUID().uuidString)
+  private var sessions: MacSessionsSource {
+    MacSessionsSource(changes: [catalogChanged], read: { [self] in catalog }, write: { _, _, _ in }, selectWorkspace: { _ in })
+  }
+
+  static func controller() -> NSViewController { MacCoreFixture().makeController() }
+
+  static func windows() -> [NSWindow] {
     let fixture = MacCoreFixture()
-    var state = MacFixtures.listState
-    state.userId = "u-core-fixture"
-    state.catalog.sessions[0].cliType = "builtin"
-    fixture.catalog = state
-    let sessions = MacSessionsSource(changes: [], read: { fixture.catalog }, write: { _, _, _ in }, selectWorkspace: { _ in })
-    let sender = SessionSender(sessionId: "s-mac", store: nil, services: OutboxSession.shared.services, inflight: OutboxInflight())
+    var environment = MacFixtures.environment
+    environment.sessions = fixture.sessions
+    environment.pane = { id in
+      if id == "s-mac" { return fixture.makeController() }
+      return MacSessionSummaryController(sessionId: id, sessions: fixture.sessions)
+    }
+    let controller = MainWindowController(environment: environment, sessionId: "s-mac")
+    controller.window?.setContentSize(NSSize(width: 1100, height: 720))
+    controller.window?.center()
+    if let workspace = controller.workspace { MacTabCoordinator.shared.select(workspace) }
+    return controller.window.map { [$0] } ?? []
+  }
+
+  private func makeController() -> MacSessionController {
+    let fixture = self
+    let store = OutboxStore(key: "core-fixture", generation: 1, persistence: .init(generation: { 1 }, read: { _ in nil }, write: { _, _, _ in }), awaitingConfirmation: "")
+    store.onChange = { [weak store] in if let store { NotificationCenter.default.post(name: .lodyOutboxDidChange, object: store) } }
+    let services = OutboxServices(createSession: { _ in throw OutboxError.scopeExpired }, ensureSession: { _ in }, sendSessionTurn: { _ in throw OutboxError.scopeExpired }, releaseReserve: { _ in }, alert: { _, _ in })
+    let sender = SessionSender(sessionId: "s-mac", store: store, services: services, inflight: OutboxInflight())
     let bridge = MacReplyBridge(sessionId: "s-mac", sessions: sessions, controlRequest: { [fixture] payload in
       try await Task.sleep(for: .milliseconds(180))
       let body = try JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any]
@@ -48,7 +72,7 @@ final class MacCoreFixture {
     }, tier: { _, _ in nil }))
     fixture.bridge = bridge
     let pane = MacSessionController(sessionId: "s-mac", source: fixture.source, composer: bridge.composer)
-    pane.retained = fixture
+    pane.retained = bridge
     pane.onFeed = { [weak bridge] in bridge?.update($0) }
     pane.onSteer = { [weak bridge] in bridge?.controlTurn("steer", messageId: $0) }
     _ = pane.view
@@ -62,18 +86,7 @@ final class MacCoreFixture {
       answered = true
       publish()
       return .accepted
-    }, queueService: MacQueueService(request: { [self] in try await queueRequest($0) }), diffService: MacDiffService(diff: { [self] request in
-      if request.path == "Retry.swift" {
-        retryCount += 1
-        if retryCount == 1 { throw OutboxError.scopeExpired }
-      }
-      if request.path == "Icon.png" {
-        return .ok(.init(base: .current, path: request.path, old: .init(kind: .binary), new: .init(kind: .binary)))
-      }
-      return .ok(.init(base: request.entryId == nil ? .current : .turn, path: request.path,
-                       old: .init(kind: .text, text: "import AppKit\n\nfunc title() -> String {\n  return \"Lody\"\n}\n"),
-                       new: .init(kind: .text, text: "import AppKit\n\nfunc title() -> String {\n  return \"Lody for Mac\"\n}\n")))
-    }, changes: { _ in .ok(.init(base: "main", files: [.init(path: "Sources/App.swift", add: 1, del: 1), .init(path: "Retry.swift", add: 1, del: 1), .init(path: "Icon.png")])) }), userId: "u-core-fixture")
+    }, queueService: MacQueueService(request: { [self] in try await queueRequest($0) }), userId: "u-core-fixture")
   }
 
   private func queueRequest(_ params: RuntimeContract.SessionQueueParams) async throws -> RuntimeContract.SessionQueueResult {
@@ -124,6 +137,7 @@ final class MacCoreFixture {
     feed.transcript.unfinishedTurnId = running ? "core-turn" : nil
     feed.transcript.entryIds = Set(entries.compactMap { $0["id"] as? String })
     changed?(feed)
+    NotificationCenter.default.post(name: catalogChanged, object: self)
   }
 }
 

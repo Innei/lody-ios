@@ -475,14 +475,14 @@ final class MacInterruptionStudyTests: XCTestCase {
     root.layoutSubtreeIfNeeded()
     window.layoutIfNeeded()
     root.layoutSubtreeIfNeeded()
-    let option = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-study-option-0" })
+    let option = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-option-0" })
     let center = NSPoint(x: option.bounds.midX, y: option.bounds.midY)
     XCTAssertTrue(root.hitTest(option.convert(center, to: root)) === option, "the native option must not be covered by its row container")
     let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: option.convert(center, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
     let hit = try XCTUnwrap(option.cell).hitTest(for: event, in: option.bounds, of: option)
     XCTAssertTrue(hit.contains(.trackableArea), "the center must land on native radio content, rather than empty stretched bounds")
     option.performClick(nil)
-    let next = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-study-allow" })
+    let next = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-continue" })
     XCTAssertTrue(next.isEnabled)
   }
 }

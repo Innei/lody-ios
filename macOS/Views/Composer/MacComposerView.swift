@@ -11,16 +11,12 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let input = MacComposerTextView()
   let mode = NSPopUpButton()
   let modelPicker = NSButton()
-  let send = NSButton()
-  let queue = NSButton()
-  let changes = NSButton()
+  let send = MacComposerActionButton()
   let notice = NSTextField(labelWithString: "")
   let attach = NSButton()
   let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
   var onStop: (() -> Void)?
-  var onQueue: (() -> Void)?
-  var onChanges: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private static let contextControlSize: CGFloat = 32
   private static let contextOverlap: CGFloat = 12
@@ -149,21 +145,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     progress.isDisplayedWhenStopped = false
     progress.frame = NSRect(x: 9, y: 9, width: 14, height: 14)
     send.addSubview(progress)
-    queue.bezelStyle = .accessoryBarAction
-    queue.isBordered = false
-    queue.image = NSImage(systemSymbolName: "list.bullet", accessibilityDescription: nil)
-    queue.target = self
-    queue.action = #selector(queuePressed)
-    queue.setAccessibilityIdentifier("composer-queue")
-    changes.bezelStyle = .accessoryBarAction
-    changes.isBordered = false
-    changes.image = NSImage(systemSymbolName: "doc.text.magnifyingglass", accessibilityDescription: nil)
-    changes.target = self
-    changes.action = #selector(changesPressed)
-    changes.setAccessibilityIdentifier("composer-changes")
-    changes.setAccessibilityLabel(String(localized: "mac.diff.all", bundle: .lodyMac))
-    changes.toolTip = String(localized: "mac.diff.all", bundle: .lodyMac)
-    let controls = NSStackView(views: [attach, mode, queue, changes, spring, modelPicker, send])
+    let controls = NSStackView(views: [attach, mode, spring, modelPicker, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -292,17 +274,12 @@ final class MacComposerView: NSView, MacFileDropTarget {
     image?.isTemplate = false
     send.image = loading ? nil : image
     send.bezelColor = primaryStops ? .systemRed : .lodyAccent
+    send.fill = loading ? .systemGray : send.bezelColor ?? .lodyAccent
     if loading { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
-    queue.isHidden = newSession || model.queueCount == 0
-    queue.title = String(model.queueCount)
-    queue.setAccessibilityLabel(String(localized: "mac.queue.title", bundle: .lodyMac))
-    changes.isHidden = newSession || onChanges == nil
     send.alphaValue = send.isEnabled || loading ? 1 : 0.4
     needsLayout = true
   }
 
-  @objc private func queuePressed() { onQueue?() }
-  @objc private func changesPressed() { onChanges?() }
 
   override func layout() {
     super.layout()
@@ -455,4 +432,20 @@ final class MacComposerTextView: NSTextView {
   }
 
   override func accessibilityPlaceholderValue() -> String? { placeholder }
+}
+
+@MainActor
+final class MacComposerActionButton: NSButton {
+  var fill: NSColor = .lodyAccent { didSet { needsDisplay = true } }
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    isBordered = false
+  }
+  required init?(coder: NSCoder) { nil }
+  override func draw(_ dirtyRect: NSRect) {
+    let color = isHighlighted ? fill.blended(withFraction: 0.12, of: .black) ?? fill : fill
+    color.setFill()
+    NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1)).fill()
+    super.draw(dirtyRect)
+  }
 }

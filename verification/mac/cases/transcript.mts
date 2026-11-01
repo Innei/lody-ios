@@ -16,8 +16,8 @@ export async function transcript(session: Session) {
     const ready = await waitForDump(
       session,
       (dump) =>
-        find(dump, (node) => node.identifier === 'permission-card').length ===
-        1,
+        find(dump, (node) => node.identifier === 'composer-interruption')
+          .length === 1,
     );
     expect(
       find(ready, (node) => node.identifier === 'transcript-user').length === 1,
@@ -43,11 +43,13 @@ export async function transcript(session: Session) {
     await capture(session, `transcript-${appearance}`);
   }
 
-  await clickText(session, 'Allow');
+  await clickText(session, 'permission-option-0');
+  await clickText(session, 'permission-continue');
   const answered = await waitForDump(
     session,
     (dump) =>
-      find(dump, (node) => node.identifier === 'permission-card').length === 0,
+      find(dump, (node) => node.identifier === 'composer-interruption')
+        .length === 0,
   );
   expect(
     find(answered, (node) => node.identifier === 'transcript-prose').length ===

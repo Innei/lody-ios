@@ -48,6 +48,20 @@ final class MacPermissionFlowTests: XCTestCase {
     }
   }
 
+  func testAQuestionRetainsTheServersRejectOptionInTheSharedSurface() throws {
+    let target = SessionPermission(entryId: "a", itemId: "q", requestId: "r", kind: "ask_user_question", title: "Choose", path: nil,
+      options: [.init(optionId: "yes", name: "Continue", kind: "allow_once"), .init(optionId: "no", name: "Skip", kind: "reject_once")],
+      questionMeta: .init(questions: [.init(id: "q", header: "Q", question: "Which?", options: [], multiSelect: false, allowCustomAnswer: true, isSecret: false)], allowCustomAnswer: true))
+    let flow = MacPermissionFlow(detail: { _ in nil }, respond: { _, _ in .accepted })
+    flow.show(target)
+    let card = MacPermissionCard(card: try XCTUnwrap(flow.card))
+    var answer: String?
+    card.onAnswer = { answer = $0 }
+    let skip = try XCTUnwrap(card.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "question-skip" })
+    skip.performClick(nil)
+    XCTAssertEqual(answer, "no")
+  }
+
   func testAValidAgentQuestionRendersItsChoicesInsteadOfAnOptionsError() throws {
     let target = SessionPermission(
       entryId: "a", itemId: "q", requestId: "request-question", kind: "ask_user_question", title: "Choose a destination", path: nil,
@@ -202,6 +216,44 @@ final class MacRunControlTests: XCTestCase {
     state.catalog.sessions[0].status = "idle"
     bridge.update(feed)
     XCTAssertFalse(bridge.composer.model.run.running)
+  }
+
+  func testComposerDoesNotAddQueueOrDiffToolbarButtons() {
+    let view = MacComposerView()
+    view.render(MacComposerModel(mode: .reply), reply: ("", "", ""))
+    XCTAssertTrue(view.descendants(NSButton.self).filter { ["composer-queue", "composer-changes"].contains($0.accessibilityIdentifier()) }.isEmpty)
+  }
+
+  func testWithdrawnDiffInteractionLeavesAReadOnlyChangesSummary() {
+    let view = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 760, height: 500))
+    let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
+    window.contentView = view
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = [.changes(id: "files", text: "App.swift +1 −1")]
+    view.render(model)
+    _ = view.rowViews
+    XCTAssertTrue(view.descendants(NSButton.self).filter { $0.accessibilityIdentifier() == "transcript-changes" }.isEmpty)
+    XCTAssertTrue(view.descendants(NSTextField.self).contains { $0.stringValue.contains("App.swift") })
+  }
+
+  func testQueuedMessagesAppearAboveTheComposerWithoutAnAttachedSheet() async throws {
+    let pane = try XCTUnwrap(MacCoreFixture.controller() as? MacSessionController)
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 820), styleMask: [.titled], backing: .buffered, defer: false)
+    window.contentViewController = pane
+    // Answer the request through the real surface to reveal the composer and queue.
+    let card = try XCTUnwrap(pane.view.descendants(MacPermissionCard.self).first)
+    card.onQuestion?(.select(0))
+    card.onQuestion?(.page(1))
+    card.onQuestion?(.text("Verify"))
+    card.onQuestion?(.submit)
+    for _ in 0..<30 { await Task.yield() }
+    pane.view.layoutSubtreeIfNeeded()
+    let queue = try XCTUnwrap(pane.children.compactMap { $0 as? MacQueueController }.first)
+    let composer = try XCTUnwrap(pane.children.compactMap { $0 as? MacComposerController }.first)
+    XCTAssertFalse(queue.view.isHidden)
+    XCTAssertGreaterThanOrEqual(queue.view.frame.minY, composer.view.frame.maxY)
+    XCTAssertNil(window.attachedSheet)
+    XCTAssertFalse(queue.view.descendants(NSButton.self).contains { $0.accessibilityIdentifier() == "queue-close" })
   }
 
   func testPrimaryActionUsesAnAdaptiveForegroundWithReadableContrast() throws {
@@ -479,8 +531,7 @@ final class MacQueueTests: XCTestCase {
     XCTAssertEqual(unsaved.string, "Unsaved content")
     XCTAssertFalse(unsaved.isEditable)
     XCTAssertTrue(unsaved.isSelectable)
-    let close = try XCTUnwrap(page.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "queue-close" })
-    XCTAssertTrue(close.isEnabled)
+    XCTAssertFalse(page.view.descendants(NSButton.self).contains { $0.accessibilityIdentifier() == "queue-close" })
     let discard = try XCTUnwrap(page.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "queue-discard-unsaved" })
     discard.performClick(nil)
     XCTAssertNil(model.conflictText)
@@ -728,12 +779,7 @@ final class MacLayoutTests: XCTestCase {
     let transcript = MacTranscriptView(frame: .zero)
     var model = MacTranscriptModel(entriesJSON: "[]")
     model.items = (0..<6).map { .prose(id: "p\($0)", markdown: "Paragraph \($0)\n\n- one\n- two\n- three") }
-    let json = """
-    [{"id":"a1","role":"assistant","items":[{"itemId":"edit","type":"tool_call","kind":"edit","title":"Edit file","permission":{"pending":true,"requestId":"r1","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"}]}}]}]
-    """
-    let entries = try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [[String: Any]]
-    let permission = try! SessionPermission.first(in: entries)!
-    transcript.render(model, card: .init(permission: permission, options: permission.options ?? [], busy: false, error: ""))
+    transcript.render(model)
     let container = NSView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
     window.contentView = container
     container.addSubview(transcript)
@@ -776,5 +822,13 @@ final class MacTranscriptPinTests: XCTestCase {
     scroll.contentInsets = NSEdgeInsets(top: 52, left: 0, bottom: 0, right: 0)
     window.layoutIfNeeded()
     XCTAssertTrue(transcript.isScrolledToBottom, "\(scroll.contentView.bounds) in \(scroll.documentView!.frame)")
+  }
+}
+
+@MainActor
+final class MacCoreParitySceneTests: XCTestCase {
+  func testSelectedFeaturesHaveAnIndependentlyResettableOfflineScene() throws {
+    XCTAssertNotNil(DebugSceneFactory.scene("core-parity"))
+    XCTAssertNotNil(DebugSceneFactory.scene("core-draft"))
   }
 }

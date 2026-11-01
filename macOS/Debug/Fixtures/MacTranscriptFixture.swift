@@ -10,8 +10,10 @@ final class MacTranscriptFixture {
   private let earlier: String
   private let media: Bool
   private let shell: Bool
+  private let approval: Bool
 
-  init(history: Int = 0, media: Bool = false, shell: Bool = false) {
+  init(history: Int = 0, media: Bool = false, shell: Bool = false, approval: Bool = true) {
+    self.approval = approval
     self.media = media
     self.shell = shell
     earlier = (0..<history).map { index in
@@ -72,7 +74,7 @@ final class MacTranscriptFixture {
         {"itemId":"reply","type":"text","text":"Sessions now stay together under each **machine and project**. Compact rows keep titles aligned with their project, and a neutral selection marks the current conversation.\\n\\nSearch, project filtering, and the session menu stay within the native Mac window. Archived sessions are available from the footer."}]}\(followUps)]
       """
     }
-    let permission = answered == nil
+    let permission = answered == nil && approval
       ? #","permission":{"pending":true,"requestId":"r-edit","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}"#
       : #","status":"completed""#
     let reply = answered == nil ? "" : #",{"itemId":"done","type":"text","text":"Approved. The sidebar now groups sessions by project, with **Pinned** on top."}"#

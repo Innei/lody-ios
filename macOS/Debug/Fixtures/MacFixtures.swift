@@ -33,13 +33,13 @@ enum MacFixtures {
 
   static var environment: MacEnvironment { environment(history: 0) }
 
-  static func environment(history: Int, media: Bool = false, attachments: Bool = false, shell: Bool = false) -> MacEnvironment {
+  static func environment(history: Int, media: Bool = false, attachments: Bool = false, shell: Bool = false, approval: Bool = true) -> MacEnvironment {
     let sessions = MacSessionsSource.fixture(listState)
     return MacEnvironment(
       sessions: sessions,
       pane: { sessionId in
         guard sessionId == "s-mac" else { return MacSessionSummaryController(sessionId: sessionId, sessions: sessions) }
-        let transcript = MacTranscriptFixture(history: history, media: media, shell: shell)
+        let transcript = MacTranscriptFixture(history: history, media: media, shell: shell, approval: approval)
         var model = MacComposerModel(mode: .reply)
         model.replyReady = true
         model.replyCapability = MacComposerFixture.capability
@@ -81,8 +81,8 @@ enum MacFixtures {
     )
   }
 
-  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false, attachments: Bool = false, shell: Bool = false) -> [NSWindow] {
-    let controller = MainWindowController(environment: environment(history: history, media: media, attachments: attachments, shell: shell), sessionId: sessionId)
+  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false, attachments: Bool = false, shell: Bool = false, approval: Bool = true) -> [NSWindow] {
+    let controller = MainWindowController(environment: environment(history: history, media: media, attachments: attachments, shell: shell, approval: approval), sessionId: sessionId)
     if shell {
       controller.window?.setContentSize(NSSize(width: 1232, height: 812))
       controller.window?.center()

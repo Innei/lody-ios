@@ -170,7 +170,12 @@ final class MacPermissionCard: NSView {
     rendered = card
     refreshChoices()
     let enabled = card.ready && !card.busy
-    if let draft = card.questions { question?.update(draft, enabled: enabled, canSubmit: options.contains { $0.kind?.hasPrefix("allow") == true }) }
+    if let draft = card.questions {
+      let reject = options.first { $0.kind?.hasPrefix("reject") == true }
+      question?.rejectTitle = reject?.name ?? ""
+      question?.onReject = { [weak self] in if let reject { self?.onAnswer?(reject.optionId) } }
+      question?.update(draft, enabled: enabled, canSubmit: options.contains { $0.kind?.hasPrefix("allow") == true })
+    }
     error.stringValue = card.error
     error.isHidden = card.error.isEmpty
     invalidateIntrinsicContentSize()

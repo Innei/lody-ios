@@ -12,7 +12,6 @@ struct MacTranscriptSource {
   var media: CKMediaProvider?
   var respondQuestions: MacPermissionFlow.RespondQuestions = { _, _, _ in throw OutboxError.scopeExpired }
   var queueService: MacQueueService?
-  var diffService: MacDiffService?
   var userId = ""
   var reconnect: () -> Void = {}
 
@@ -39,7 +38,6 @@ struct MacTranscriptSource {
                                           requestId: target.requestId, optionId: optionId, answers: answers))
       },
       queueService: .live(sessionId: sessionId, workspace: state.workspaceId, user: state.userId),
-      diffService: .live(session: sessionId, workspace: state.workspaceId, user: state.userId),
       userId: state.userId,
       reconnect: { feed.reconnect() }
     )

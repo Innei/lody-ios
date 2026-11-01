@@ -15,7 +15,6 @@ struct MacComposerModel {
   var attachments = MacDraftAttachments()
   var attachmentNotice = ""
   var run = SessionControl.State()
-  var queueCount = 0
 
   init(mode: Mode) { self.mode = mode }
 

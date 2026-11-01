@@ -73,8 +73,6 @@ final class MacReplyBridge {
 
   func update(_ next: SessionFeedState) {
     feed = next
-    let entries = (try? JSONSerialization.jsonObject(with: Data(next.entriesJSON.utf8))) as? [[String: Any]] ?? []
-    composer.updateQueueCount(entries.filter { $0["status"] as? String == "queued" }.count)
     refresh()
   }
 

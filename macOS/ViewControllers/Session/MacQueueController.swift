@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class MacQueueController: NSViewController, NSTextViewDelegate {
   let model: MacQueueModel
-  private let stack = NSStackView()
+  private let stack = MacQueueStack()
   private let rows = NSStackView()
   private let editingSection = NSStackView()
   private let conflictSection = NSStackView()
@@ -11,10 +11,9 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
   private var editor: NSTextView?
   private var editingId: String?
   private var renderedConflict: String?
-  private var refresh: NSButton?
-  private var closeButton: NSButton?
   private var reconnectButton: NSButton?
   private var editorButtons: [NSButton] = []
+  var onHeightChange: (() -> Void)?
   var reconnect: (() -> Void)?
 
   init(model: MacQueueModel) {
@@ -25,40 +24,40 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
   required init?(coder: NSCoder) { nil }
 
   override func loadView() {
-    preferredContentSize = NSSize(width: 640, height: 460)
-    let root = NSView(frame: NSRect(origin: .zero, size: preferredContentSize))
+    preferredContentSize = NSSize(width: 640, height: 0)
+    let root = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 44))
+    let glass = NSGlassEffectView()
+    glass.style = .regular
+    glass.cornerRadius = 20
+    if #available(macOS 27, *) { glass.effectIsInteractive = true }
     let scroll = NSScrollView()
     scroll.hasVerticalScroller = true
+    scroll.autohidesScrollers = true
     scroll.drawsBackground = false
     for section in [stack, rows, editingSection, conflictSection] {
       section.orientation = .vertical
       section.alignment = .leading
-      section.spacing = 14
+      section.spacing = 8
     }
-    stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+    rows.spacing = 0
+    stack.edgeInsets = NSEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
     stack.translatesAutoresizingMaskIntoConstraints = false
     scroll.documentView = stack
-    scroll.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(scroll)
+    glass.contentView = scroll
+    glass.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(glass)
     NSLayoutConstraint.activate([
-      scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      scroll.topAnchor.constraint(equalTo: root.topAnchor), scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      glass.leadingAnchor.constraint(equalTo: root.leadingAnchor), glass.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      glass.topAnchor.constraint(equalTo: root.topAnchor), glass.bottomAnchor.constraint(equalTo: root.bottomAnchor),
       stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
     ])
-    let heading = NSTextField(labelWithString: Self.text("mac.queue.title"))
-    heading.font = .preferredFont(forTextStyle: .title2)
-    let refresh = button("mac.queue.refresh", "queue-refresh") { [weak self] in Task { await self?.model.reload() } }
-    let close = button("mac.queue.close", "queue-close") { [weak self] in self?.close() }
-    self.refresh = refresh
-    closeButton = close
-    add(NSStackView(views: [heading, NSView(), refresh, close]), to: stack, inset: 40)
     error.textColor = .systemOrange
     error.setAccessibilityIdentifier("queue-error")
-    add(error, to: stack, inset: 40)
+    add(error, to: stack, inset: 28)
     let reconnect = button("mac.queue.reconnect", "queue-reconnect") { [weak self] in self?.reconnect?() }
     reconnectButton = reconnect
-    add(reconnect, to: stack, inset: 40)
-    for section in [conflictSection, editingSection, rows] { add(section, to: stack, inset: 40) }
+    add(reconnect, to: stack, inset: 28)
+    for section in [conflictSection, editingSection, rows] { add(section, to: stack, inset: 28) }
     root.setAccessibilityIdentifier("session-queue")
     view = root
     render()
@@ -67,43 +66,81 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
 
   private func render() {
     guard isViewLoaded else { return }
-    refresh?.isEnabled = !model.busy
-    closeButton?.isEnabled = !model.busy
     reconnectButton?.isHidden = !model.blocked
     error.stringValue = model.error
     error.isHidden = model.error.isEmpty
     renderEditor()
     renderConflict()
     clear(rows)
-    if model.items.isEmpty, !model.blocked { add(NSTextField(labelWithString: Self.text(model.busy ? "mac.queue.loading" : "mac.queue.empty")), to: rows) }
     for (index, item) in model.items.enumerated() where model.editing?.id != item.id {
-      let text = NSTextField(wrappingLabelWithString: item.text)
-      text.isSelectable = true
+      let enabled = !model.busy && !model.blocked && !item.editing && model.editing == nil
+      let text = MacActionButton(title: item.text.isEmpty ? String(localized: "native.chat.row.queuedAttachmentsOnly", bundle: .lodyData) : item.text) { [weak self] in Task { await self?.model.begin(item) } }
+      text.isBordered = false
+      text.alignment = .left
+      text.font = .systemFont(ofSize: 15)
+      text.contentTintColor = .secondaryLabelColor
       text.setAccessibilityIdentifier("queue-message-\(index)")
-      add(text, to: rows)
-      if !item.attachments.isEmpty { add(files(item.attachments), to: rows) }
-      let edit = button("mac.queue.edit", "queue-edit-\(index)") { [weak self] in Task { await self?.model.begin(item) } }
-      let remove = button("mac.queue.remove", "queue-remove-\(index)") { [weak self] in Task { await self?.model.remove(item) } }
-      let up = button("mac.queue.up", "queue-up-\(index)") { [weak self] in
-        guard let self, index > 0, model.items.indices.contains(index - 1) else { return }
-        Task { await model.move(item, over: model.items[index - 1]) }
-      }
-      let down = button("mac.queue.down", "queue-down-\(index)") { [weak self] in
-        guard let self, model.items.indices.contains(index + 1) else { return }
-        Task { await model.move(item, over: model.items[index + 1]) }
+      text.setAccessibilityLabel(text.title)
+      text.isEnabled = enabled && model.conflictText == nil
+      let content = NSStackView(views: [text])
+      content.orientation = .vertical
+      content.alignment = .leading
+      content.spacing = 2
+      content.setHuggingPriority(.init(1), for: .horizontal)
+      content.setContentHuggingPriority(.init(1), for: .horizontal)
+      text.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+      if !item.attachments.isEmpty {
+        let caption = files(item.attachments)
+        caption.font = .systemFont(ofSize: 12)
+        content.addArrangedSubview(caption)
       }
       let steer = button("mac.queue.steer", "queue-steer-\(index)") { [weak self] in self?.model.steer(item) }
-      for button in [edit, remove, up, down, steer] { button.isEnabled = !model.busy && !model.blocked && !item.editing && model.editing == nil }
-      edit.isEnabled = edit.isEnabled && model.conflictText == nil
-      up.isEnabled = up.isEnabled && index > 0
-      down.isEnabled = down.isEnabled && index < model.items.count - 1
-      steer.isEnabled = steer.isEnabled && item.messageId != nil && model.canSteer(index)
-      add(NSStackView(views: [edit, remove, up, down, steer]), to: rows)
-      let separator = NSBox()
-      separator.boxType = .separator
-      add(separator, to: rows)
+      steer.title = ""
+      steer.image = NSImage(systemSymbolName: "arrow.up.circle", accessibilityDescription: nil)
+      steer.isBordered = false
+      steer.contentTintColor = .lodyAccent
+      steer.setAccessibilityLabel(Self.text("mac.queue.steer") + ": " + item.text)
+      steer.isEnabled = enabled && item.messageId != nil && model.canSteer(index)
+      let row = NSStackView(views: [content, steer])
+      row.alignment = .centerY
+      row.distribution = .fill
+      row.spacing = 8
+      row.heightAnchor.constraint(equalToConstant: item.attachments.isEmpty ? 44 : 58).isActive = true
+      steer.widthAnchor.constraint(equalToConstant: 36).isActive = true
+      steer.heightAnchor.constraint(equalToConstant: 36).isActive = true
+      let menu = NSMenu()
+      menu.autoenablesItems = false
+      func action(_ key: String, enabled: Bool, perform: @escaping () -> Void) {
+        let entry = MacQueueMenuItem(title: Self.text(key), action: perform)
+        entry.isEnabled = enabled
+        menu.addItem(entry)
+      }
+      action("mac.queue.edit", enabled: enabled && model.conflictText == nil) { [weak self] in Task { await self?.model.begin(item) } }
+      action("mac.queue.remove", enabled: enabled) { [weak self] in Task { await self?.model.remove(item) } }
+      menu.addItem(.separator())
+      action("mac.queue.up", enabled: enabled && index > 0) { [weak self] in
+        guard let self, let i = model.items.firstIndex(where: { $0.id == item.id }), i > 0 else { return }
+        Task { await model.move(item, over: model.items[i - 1]) }
+      }
+      action("mac.queue.down", enabled: enabled && index < model.items.count - 1) { [weak self] in
+        guard let self, let i = model.items.firstIndex(where: { $0.id == item.id }), i + 1 < model.items.count else { return }
+        Task { await model.move(item, over: model.items[i + 1]) }
+      }
+      row.menu = menu
+      text.menu = menu
+      add(row, to: rows)
+      if index < model.items.count - 1 { let line = NSBox(); line.boxType = .separator; add(line, to: rows) }
     }
+    let visible = !model.items.isEmpty || model.blocked || !model.error.isEmpty || model.conflictText != nil
+    var height: CGFloat = model.items.prefix(3).reduce(20) { $0 + ($1.attachments.isEmpty ? 44 : 58) }
+    if model.editing != nil || model.conflictText != nil { height = max(172, min(300, height + 100)) }
+    if !model.error.isEmpty { height += 44 }
+    if model.blocked { height += 32 }
+    preferredContentSize.height = visible ? height : 0
+    onHeightChange?()
   }
+
+  func refreshControls() { render() }
 
   private func renderEditor() {
     let next = model.editing.map { $0.id + "\n" + ($0.editToken ?? "") }
@@ -124,7 +161,7 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
         input.setAccessibilityIdentifier("queue-editor")
         editor = input
         add(scroll, to: editingSection)
-        scroll.heightAnchor.constraint(equalToConstant: 100).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: 64).isActive = true
         editorButtons = [button("mac.queue.save", "queue-save") { [weak self] in Task { await self?.model.save() } },
                          button("mac.queue.cancel", "queue-cancel") { [weak self] in Task { await self?.model.cancel() } }]
         add(NSStackView(views: editorButtons), to: editingSection)
@@ -152,7 +189,7 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
     input.font = .preferredFont(forTextStyle: .body)
     input.setAccessibilityIdentifier("queue-unsaved")
     add(scroll, to: conflictSection)
-    scroll.heightAnchor.constraint(equalToConstant: 100).isActive = true
+    scroll.heightAnchor.constraint(equalToConstant: 64).isActive = true
     add(NSStackView(views: [button("mac.queue.copyUnsaved", "queue-copy-unsaved") { [weak self] in
       NSPasteboard.general.clearContents()
       NSPasteboard.general.setString(text, forType: .string)
@@ -161,14 +198,6 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
   }
 
   func textDidChange(_ notification: Notification) { model.text = editor?.string ?? "" }
-  private func close() {
-    Task { [weak self] in
-      guard let self else { return }
-      if model.editing != nil { await model.cancel() }
-      guard !model.busy, model.editing == nil || model.blocked else { return }
-      dismiss(nil)
-    }
-  }
   private func files(_ names: [String]) -> NSTextField {
     let label = NSTextField(wrappingLabelWithString: names.joined(separator: ", "))
     label.textColor = .secondaryLabelColor
@@ -185,4 +214,18 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
     return button
   }
   private static func text(_ key: String) -> String { String(localized: String.LocalizationValue(key), bundle: .lodyMac) }
+}
+
+private final class MacQueueStack: NSStackView { override var isFlipped: Bool { true } }
+
+@MainActor
+private final class MacQueueMenuItem: NSMenuItem {
+  private let perform: () -> Void
+  init(title: String, action: @escaping () -> Void) {
+    perform = action
+    super.init(title: title, action: #selector(selected), keyEquivalent: "")
+    target = self
+  }
+  required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  @objc private func selected() { perform() }
 }
