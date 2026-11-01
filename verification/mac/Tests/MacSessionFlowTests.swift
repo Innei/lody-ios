@@ -827,6 +827,23 @@ final class MacTranscriptPinTests: XCTestCase {
 
 @MainActor
 final class MacCoreParitySceneTests: XCTestCase {
+  func testOrdinaryApprovalKeepsTheSameColumnWidthAsTheComposer() throws {
+    let windows = MacFixtures.workspaceWindow(sessionId: "s-mac")
+    let window = try XCTUnwrap(windows.first)
+    window.setContentSize(NSSize(width: 1100, height: 720))
+    window.contentView?.layoutSubtreeIfNeeded()
+    let root = try XCTUnwrap(window.contentView)
+    let card = try XCTUnwrap(root.descendants(MacPermissionCard.self).first)
+    XCTAssertGreaterThan(card.frame.width, 600, "approval must fill the input column rather than hug short labels")
+    let composer = try XCTUnwrap(root.descendants(MacComposerView.self).first)
+    for width in [1400.0, 950.0, 1100.0] {
+      window.setContentSize(NSSize(width: width, height: 720))
+      root.layoutSubtreeIfNeeded()
+      XCTAssertEqual(card.frame.width, composer.frame.width, accuracy: 1)
+    }
+    window.close()
+  }
+
   func testSelectedFeaturesHaveAnIndependentlyResettableOfflineScene() throws {
     XCTAssertNotNil(DebugSceneFactory.scene("core-parity"))
     XCTAssertNotNil(DebugSceneFactory.scene("core-draft"))

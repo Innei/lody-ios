@@ -11,6 +11,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private let composer: NSViewController?
   private let permission: MacPermissionFlow
   private var interruption: MacPermissionCard?
+  private var interruptionWidth: NSLayoutConstraint?
   private var restoreInputFocus = false
   private var model = MacTranscriptModel(entriesJSON: "[]")
   private var parsed = MacTranscriptModel.Parsed("[]")
@@ -123,6 +124,11 @@ final class MacSessionController: NSViewController, MacSessionPane {
     }
   }
 
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    interruptionWidth?.constant = composer?.view.frame.width ?? 0
+  }
+
   var onFeed: ((SessionFeedState) -> Void)?
   var onStreaming: ((Bool) -> Void)?
   var onRetry: (() -> Void)?
@@ -168,8 +174,12 @@ final class MacSessionController: NSViewController, MacSessionPane {
         panel.onAnswer = { [weak self] in self?.permission.answer($0) }
         panel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(panel)
+        // The input owns its column. The overlay's label hugging must never
+        // feed back into the composer's deliberately soft width preference.
+        let width = panel.widthAnchor.constraint(equalToConstant: composer.view.frame.width)
+        interruptionWidth = width
         NSLayoutConstraint.activate([
-          panel.leadingAnchor.constraint(equalTo: composer.view.leadingAnchor), panel.trailingAnchor.constraint(equalTo: composer.view.trailingAnchor),
+          width, panel.centerXAnchor.constraint(equalTo: composer.view.centerXAnchor),
           panel.bottomAnchor.constraint(equalTo: composer.view.bottomAnchor),
         ])
         interruption = panel
@@ -180,6 +190,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
       let wasPresented = interruption != nil
       interruption?.removeFromSuperview()
       interruption = nil
+      interruptionWidth = nil
       composer?.view.isHidden = false
       if wasPresented, restoreInputFocus { (composer as? MacComposerController)?.focusInput() }
       restoreInputFocus = false
