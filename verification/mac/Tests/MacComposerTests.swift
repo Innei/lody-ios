@@ -55,6 +55,30 @@ final class MacComposerTests: XCTestCase {
 
 @MainActor
 final class MacComposerLayoutTests: XCTestCase {
+  func testPrimaryActionStaysSquareWithMatchingCompactBottomAndRightInsets() throws {
+    let composer = MacComposerView()
+    composer.translatesAutoresizingMaskIntoConstraints = false
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let root = NSView()
+    window.contentView = root
+    root.addSubview(composer)
+    NSLayoutConstraint.activate([composer.leadingAnchor.constraint(equalTo: root.leadingAnchor), composer.bottomAnchor.constraint(equalTo: root.bottomAnchor), composer.widthAnchor.constraint(equalToConstant: 680)])
+    var model = MacComposerModel(mode: .reply)
+    model.replyReady = true
+    model.text = "Send"
+    composer.render(model, reply: ("", "", ""))
+    root.layoutSubtreeIfNeeded()
+    let surface = try XCTUnwrap(composer.descendants(NSGlassEffectView.self).first)
+    let button = composer.send.convert(composer.send.bounds, to: surface)
+    XCTAssertEqual(button.width, button.height, accuracy: 0.5)
+    let right = surface.bounds.maxX - button.maxX
+    let bottom = surface.isFlipped ? surface.bounds.maxY - button.maxY : button.minY
+    XCTAssertEqual(right, bottom, accuracy: 1)
+    XCTAssertLessThanOrEqual(right, 10)
+  }
+
   func testAReplySendTellsTheTranscriptBeforeTheServiceRuns() throws {
     final class Events { var log: [String] = [] }
     let events = Events()
@@ -470,7 +494,7 @@ final class MacInterruptionStudyTests: XCTestCase {
   }
 
   func testNativeChoiceCenterIsAnInteractiveRadioTarget() throws {
-    let study = MacInterruptionStudy(content: .approval)
+    let study = MacInterruptionStudy(content: .questions)
     let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
     defer { window.close() }
@@ -486,14 +510,14 @@ final class MacInterruptionStudyTests: XCTestCase {
     root.layoutSubtreeIfNeeded()
     window.layoutIfNeeded()
     root.layoutSubtreeIfNeeded()
-    let option = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-option-0" })
+    let option = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "question-option-0" })
     let center = NSPoint(x: option.bounds.midX, y: option.bounds.midY)
     XCTAssertTrue(root.hitTest(option.convert(center, to: root)) === option, "the native option must not be covered by its row container")
     let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: option.convert(center, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
     let hit = try XCTUnwrap(option.cell).hitTest(for: event, in: option.bounds, of: option)
     XCTAssertTrue(hit.contains(.trackableArea), "the center must land on native radio content, rather than empty stretched bounds")
     option.performClick(nil)
-    let next = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-continue" })
+    let next = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "question-next" })
     XCTAssertTrue(next.isEnabled)
   }
 }

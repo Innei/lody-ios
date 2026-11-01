@@ -85,9 +85,7 @@ final class MacPermissionCard: NSView {
   private var rendered: MacPermissionFlow.Card?
   private var question: MacQuestionView?
   private let error = NSTextField(wrappingLabelWithString: "")
-  private var rows: [MacInterruptionOption] = []
-  private var selected: String?
-  private let submit = NSButton()
+  private var rows: [NSButton] = []
 
   init(card: MacPermissionFlow.Card) {
     super.init(frame: .zero)
@@ -109,25 +107,22 @@ final class MacPermissionCard: NSView {
     ])
     error.textColor = .systemOrange
     error.setAccessibilityIdentifier("permission-error")
-    submit.bezelStyle = .rounded
-    submit.controlSize = .large
-    submit.title = String(localized: "mac.permission.continue", bundle: .lodyMac)
-    submit.target = self
-    submit.action = #selector(continued)
-    submit.setAccessibilityIdentifier("permission-continue")
     setAccessibilityIdentifier("composer-interruption")
     update(card)
   }
   required init?(coder: NSCoder) { nil }
-  override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: max(150, stack.fittingSize.height)) }
+  override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: stack.fittingSize.height) }
 
   func update(_ card: MacPermissionFlow.Card) {
     if rendered?.permission != card.permission || options != card.options {
       stack.arrangedSubviews.forEach { stack.removeArrangedSubview($0); $0.removeFromSuperview() }
       options = card.options
-      selected = nil
       rows = []
       question = nil
+      let questions = card.questions != nil
+      let padding: CGFloat = questions ? 16 : 12
+      stack.spacing = questions ? 12 : 8
+      stack.edgeInsets = NSEdgeInsets(top: padding, left: padding, bottom: padding, right: padding)
       if card.questions != nil {
         let view = MacQuestionView()
         view.onAction = { [weak self] in self?.onQuestion?($0) }
@@ -142,28 +137,40 @@ final class MacPermissionCard: NSView {
         let header = NSStackView(views: [icon, status, NSView()])
         header.spacing = 8
         add(header)
-        let heading = NSTextField(wrappingLabelWithString: String(localized: "mac.permission.title", bundle: .lodyMac))
+        let heading = NSTextField(wrappingLabelWithString: card.permission.title ?? String(localized: "mac.permission.title", bundle: .lodyMac))
         heading.font = .systemFont(ofSize: 16, weight: .semibold)
         add(heading)
-        let detail = NSTextField(wrappingLabelWithString: [card.permission.title, card.permission.path].compactMap { $0 }.joined(separator: "\n"))
-        detail.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        detail.textColor = .secondaryLabelColor
-        add(detail)
+        if let path = card.permission.path, !path.isEmpty {
+          let detail = NSTextField(wrappingLabelWithString: path)
+          detail.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+          detail.textColor = .secondaryLabelColor
+          add(detail)
+        }
         let choices = NSStackView()
         choices.orientation = .vertical
-        choices.spacing = 4
+        choices.spacing = 0
         for (index, option) in options.enumerated() {
-          let row = MacInterruptionOption(title: option.name, index: index) { [weak self] in
-            self?.selected = option.optionId
-            self?.refreshChoices()
+          let row = MacActionButton(title: option.name) { [weak self] in
+            guard let self, let current = rendered, current.permission == card.permission, current.ready, !current.busy else { return }
+            onAnswer?(option.optionId)
           }
-          row.button.setAccessibilityIdentifier("permission-option-\(index)")
+          row.isBordered = false
+          row.alignment = .left
+          row.font = .preferredFont(forTextStyle: .body)
+          row.contentTintColor = option.kind?.hasPrefix("reject") == true ? .systemRed : .lodyAccent
+          row.setAccessibilityIdentifier("permission-option-\(index)")
+          row.setAccessibilityLabel(option.name)
           choices.addArrangedSubview(row)
           row.widthAnchor.constraint(equalTo: choices.widthAnchor).isActive = true
+          row.heightAnchor.constraint(equalToConstant: 44).isActive = true
           rows.append(row)
+          if index < options.count - 1 {
+            let line = NSBox(); line.boxType = .separator
+            choices.addArrangedSubview(line)
+            line.widthAnchor.constraint(equalTo: choices.widthAnchor).isActive = true
+          }
         }
         add(choices)
-        add(NSStackView(views: [NSView(), submit]))
       }
       add(error)
     }
@@ -180,15 +187,11 @@ final class MacPermissionCard: NSView {
     error.isHidden = card.error.isEmpty
     invalidateIntrinsicContentSize()
   }
-  private func add(_ child: NSView) { stack.addArrangedSubview(child); child.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32).isActive = true }
+  private func add(_ child: NSView) { stack.addArrangedSubview(child); child.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -stack.edgeInsets.left-stack.edgeInsets.right).isActive = true }
   private func refreshChoices() {
     let enabled = rendered?.ready == true && rendered?.busy == false
-    for (index, row) in rows.enumerated() { row.update(selected: options[index].optionId == selected, enabled: enabled) }
-    submit.isEnabled = enabled && selected != nil
-    submit.bezelColor = .lodyAccent
-    submit.contentTintColor = .lodyAccentForeground
+    rows.forEach { $0.isEnabled = enabled }
   }
-  @objc private func continued() { if submit.isEnabled, let selected { onAnswer?(selected) } }
 }
 
 @MainActor

@@ -26,6 +26,23 @@ final class MacNotificationBaselineTests: XCTestCase {
 
 @MainActor
 final class MacPermissionFlowTests: XCTestCase {
+  func testAnApprovalOptionSubmitsOnItsFirstClickWithoutAConfirmationButton() throws {
+    let target = try permission(options: #"[{"optionId":"allow","name":"Allow once","kind":"allow_once"},{"optionId":"deny","name":"Don’t allow","kind":"reject_once"}]"#)
+    var state = MacPermissionFlow.Card(permission: target, options: target.options ?? [], busy: false, error: "")
+    let view = MacPermissionCard(card: state)
+    var answers: [String] = []
+    view.onAnswer = { answers.append($0) }
+    let action = try XCTUnwrap(view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-option-0" })
+    action.performClick(nil)
+    XCTAssertEqual(answers, ["allow"])
+    XCTAssertFalse(view.descendants(NSButton.self).contains { $0.accessibilityIdentifier() == "permission-continue" })
+    XCTAssertNotEqual(action.accessibilityRole(), .radioButton)
+    state.busy = true
+    view.update(state)
+    action.performClick(nil)
+    XCTAssertEqual(answers, ["allow"], "a busy action cannot submit a second response")
+  }
+
   func testApprovalsAndQuestionsReplaceTheComposerWithTheApprovedGlassSurface() throws {
     let panes: [MacSessionPane] = [MacCoreFixture.controller() as! MacSessionController, MacFixtures.environment.pane("s-mac")]
     for pane in panes {
@@ -251,7 +268,10 @@ final class MacRunControlTests: XCTestCase {
     let queue = try XCTUnwrap(pane.children.compactMap { $0 as? MacQueueController }.first)
     let composer = try XCTUnwrap(pane.children.compactMap { $0 as? MacComposerController }.first)
     XCTAssertFalse(queue.view.isHidden)
-    XCTAssertGreaterThanOrEqual(queue.view.frame.minY, composer.view.frame.maxY)
+    XCTAssertLessThan(queue.view.frame.minY, composer.view.frame.maxY, "the context tray tucks behind the composer")
+    XCTAssertGreaterThan(queue.view.frame.maxY, composer.view.frame.maxY)
+    XCTAssertGreaterThan(queue.view.frame.minX, composer.view.frame.minX)
+    XCTAssertLessThan(queue.view.frame.maxX, composer.view.frame.maxX)
     XCTAssertNil(window.attachedSheet)
     XCTAssertFalse(queue.view.descendants(NSButton.self).contains { $0.accessibilityIdentifier() == "queue-close" })
   }

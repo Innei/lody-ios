@@ -26,10 +26,7 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
   override func loadView() {
     preferredContentSize = NSSize(width: 640, height: 0)
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 44))
-    let glass = NSGlassEffectView()
-    glass.style = .regular
-    glass.cornerRadius = 20
-    if #available(macOS 27, *) { glass.effectIsInteractive = true }
+    let surface = MacComposerTrayView()
     let scroll = NSScrollView()
     scroll.hasVerticalScroller = true
     scroll.autohidesScrollers = true
@@ -40,15 +37,18 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
       section.spacing = 8
     }
     rows.spacing = 0
-    stack.edgeInsets = NSEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+    stack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4 + MacComposerTrayView.overlap, right: 12)
     stack.translatesAutoresizingMaskIntoConstraints = false
     scroll.documentView = stack
-    glass.contentView = scroll
-    glass.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(glass)
+    surface.translatesAutoresizingMaskIntoConstraints = false
+    scroll.translatesAutoresizingMaskIntoConstraints = false
+    surface.addSubview(scroll)
+    root.addSubview(surface)
     NSLayoutConstraint.activate([
-      glass.leadingAnchor.constraint(equalTo: root.leadingAnchor), glass.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      glass.topAnchor.constraint(equalTo: root.topAnchor), glass.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      surface.leadingAnchor.constraint(equalTo: root.leadingAnchor), surface.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      surface.topAnchor.constraint(equalTo: root.topAnchor), surface.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      scroll.leadingAnchor.constraint(equalTo: surface.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
+      scroll.topAnchor.constraint(equalTo: surface.topAnchor), scroll.bottomAnchor.constraint(equalTo: surface.bottomAnchor),
       stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
     ])
     error.textColor = .systemOrange
@@ -105,7 +105,7 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
       row.alignment = .centerY
       row.distribution = .fill
       row.spacing = 8
-      row.heightAnchor.constraint(equalToConstant: item.attachments.isEmpty ? 44 : 58).isActive = true
+      row.heightAnchor.constraint(equalToConstant: item.attachments.isEmpty ? 40 : 52).isActive = true
       steer.widthAnchor.constraint(equalToConstant: 36).isActive = true
       steer.heightAnchor.constraint(equalToConstant: 36).isActive = true
       let menu = NSMenu()
@@ -132,11 +132,11 @@ final class MacQueueController: NSViewController, NSTextViewDelegate {
       if index < model.items.count - 1 { let line = NSBox(); line.boxType = .separator; add(line, to: rows) }
     }
     let visible = !model.items.isEmpty || model.blocked || !model.error.isEmpty || model.conflictText != nil
-    var height: CGFloat = model.items.prefix(3).reduce(20) { $0 + ($1.attachments.isEmpty ? 44 : 58) }
+    var height: CGFloat = model.items.prefix(3).reduce(8) { $0 + ($1.attachments.isEmpty ? 40 : 52) }
     if model.editing != nil || model.conflictText != nil { height = max(172, min(300, height + 100)) }
     if !model.error.isEmpty { height += 44 }
     if model.blocked { height += 32 }
-    preferredContentSize.height = visible ? height : 0
+    preferredContentSize.height = visible ? height + MacComposerTrayView.overlap : 0
     onHeightChange?()
   }
 

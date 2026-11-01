@@ -44,7 +44,6 @@ export async function transcript(session: Session) {
   }
 
   await clickText(session, 'permission-option-0');
-  await clickText(session, 'permission-continue');
   const answered = await waitForDump(
     session,
     (dump) =>

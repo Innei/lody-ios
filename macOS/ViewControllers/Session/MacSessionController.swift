@@ -78,12 +78,12 @@ final class MacSessionController: NSViewController, MacSessionPane {
         queuePage = page
         addChild(page)
         page.view.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(page.view)
+        root.addSubview(page.view, positioned: .below, relativeTo: composer.view)
         let height = page.view.heightAnchor.constraint(equalToConstant: 0)
         let gap = page.view.bottomAnchor.constraint(equalTo: composer.view.topAnchor)
         queueHeight = height
         queueGap = gap
-        constraints += [height, gap, page.view.widthAnchor.constraint(equalTo: composer.view.widthAnchor), page.view.centerXAnchor.constraint(equalTo: composer.view.centerXAnchor), transcript.bottomAnchor.constraint(equalTo: page.view.topAnchor)]
+        constraints += [height, gap, page.view.widthAnchor.constraint(equalTo: composer.view.widthAnchor, constant: -2 * MacComposerTrayView.sideInset), page.view.centerXAnchor.constraint(equalTo: composer.view.centerXAnchor), transcript.bottomAnchor.constraint(equalTo: page.view.topAnchor)]
       } else { constraints.append(transcript.bottomAnchor.constraint(equalTo: composer.view.topAnchor)) }
       constraints += [
         composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
@@ -152,7 +152,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     let visible = permission.card == nil && page.preferredContentSize.height > 0
     page.view.isHidden = !visible
     queueHeight?.constant = visible ? page.preferredContentSize.height : 0
-    queueGap?.constant = visible ? -8 : 0
+    queueGap?.constant = visible ? MacComposerTrayView.overlap : 0
   }
 
   private func rebuild() {

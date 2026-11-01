@@ -19,10 +19,10 @@ final class MacComposerView: NSView, MacFileDropTarget {
   var onStop: (() -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   private static let contextControlSize: CGFloat = 32
-  private static let contextOverlap: CGFloat = 12
+  private static let contextOverlap = MacComposerTrayView.overlap
   private let tray = NSStackView()
   private let noticeRow = NSStackView()
-  private let contextSurface = NSVisualEffectView()
+  private let contextSurface = MacComposerTrayView()
   private let surface = NSGlassEffectView()
   private let body = NSStackView()
   private let inputScroll: NSScrollView
@@ -79,12 +79,6 @@ final class MacComposerView: NSView, MacFileDropTarget {
     tray.setViews([agent], in: .trailing)
     tray.spacing = 8
     tray.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
-    contextSurface.material = .popover
-    contextSurface.state = .active
-    contextSurface.blendingMode = .withinWindow
-    contextSurface.wantsLayer = true
-    contextSurface.layer?.cornerRadius = 16
-    contextSurface.layer?.masksToBounds = true
     contextSurface.setAccessibilityIdentifier("composer-context-bar")
     input.font = .systemFont(ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize + reading.textSize - MacReading.standard.textSize)
     input.isRichText = false
@@ -156,7 +150,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     body.orientation = .vertical
     body.alignment = .leading
     body.spacing = 8
-    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 8, right: 16)
+    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 8, right: 8)
     noticeRow.addArrangedSubview(notice)
     noticeRow.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
     for flexible in [controls, body, noticeRow, tray] {
@@ -188,7 +182,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
       notice.widthAnchor.constraint(lessThanOrEqualTo: noticeRow.widthAnchor, constant: -16),
       strip.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
       scroll.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
-      controls.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      controls.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -24),
       controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
       inputHeight,
       attach.widthAnchor.constraint(equalToConstant: 32),
@@ -439,6 +433,7 @@ final class MacComposerTextView: NSTextView {
 
 @MainActor
 final class MacComposerActionButton: NSButton {
+  override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0) }
   var fill: NSColor = .lodyAccent { didSet { needsDisplay = true } }
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -451,4 +446,21 @@ final class MacComposerActionButton: NSButton {
     NSBezierPath(ovalIn: bounds.insetBy(dx: 1, dy: 1)).fill()
     super.draw(dirtyRect)
   }
+}
+
+/// The inset material tray shared by project context and queued messages.
+@MainActor
+final class MacComposerTrayView: NSVisualEffectView {
+  static let sideInset: CGFloat = 12
+  static let overlap: CGFloat = 12
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    material = .popover
+    state = .active
+    blendingMode = .withinWindow
+    wantsLayer = true
+    layer?.cornerRadius = 16
+    layer?.masksToBounds = true
+  }
+  required init?(coder: NSCoder) { nil }
 }

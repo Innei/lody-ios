@@ -234,17 +234,14 @@ final class ComposerReplyTests: LodyMacUITestCase {
   func testPermissionInterruptionDesignStudies() {
     for appearance in ["light", "dark"] {
       open("permission-study-a", appearance)
-      let next = scene.buttons["permission-continue"]
-      XCTAssertTrue(next.waitForExistence(timeout: 3))
+      let allow = scene.buttons["permission-option-0"]
+      XCTAssertTrue(allow.waitForExistence(timeout: 3))
       XCTAssertFalse(scene.textViews["composer-input"].isEnabled)
-      XCTAssertFalse(next.isEnabled, "permission needs an explicit choice")
+      XCTAssertFalse(scene.buttons["permission-continue"].exists)
       attach("permission-glass-empty-\(appearance)", scene)
-      let allow = scene.radioButtons["permission-option-0"]
-      XCTAssertTrue(allow.exists, "options use native radio controls")
-      allow.click()
-      eventually("choosing an answer enables Continue") { next.isEnabled }
+      XCTAssertTrue(allow.isEnabled, "each permission item is a direct action")
       attach("permission-study-a-\(appearance)", scene)
-      next.click()
+      allow.click()
       eventually("the preserved draft returns") { scene.textViews["composer-input"].isEnabled }
       XCTAssertEqual(value(scene.textViews["composer-input"]), "Keep the native controls and align the sidebar rows.")
       attach("permission-glass-restored-\(appearance)", scene)
