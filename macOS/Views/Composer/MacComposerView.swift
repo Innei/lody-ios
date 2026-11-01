@@ -132,6 +132,9 @@ final class MacComposerView: NSView, MacFileDropTarget {
     modelPicker.isBordered = false
     modelPicker.bezelStyle = .accessoryBarAction
     modelPicker.font = .preferredFont(forTextStyle: .body)
+    modelPicker.cell?.wraps = false
+    modelPicker.cell?.usesSingleLineMode = true
+    modelPicker.cell?.lineBreakMode = .byTruncatingTail
     modelPicker.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
     modelPicker.imagePosition = .imageTrailing
     modelPicker.symbolConfiguration = .init(pointSize: 10, weight: .medium)
