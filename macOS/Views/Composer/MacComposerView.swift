@@ -75,7 +75,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     tray.setViews([project, machine], in: .leading)
     tray.setViews([agent], in: .trailing)
     tray.spacing = 8
-    tray.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+    tray.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
     contextSurface.material = .popover
     contextSurface.state = .active
     contextSurface.blendingMode = .withinWindow
@@ -164,7 +164,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     for view in [body, tray, noticeRow] { view.translatesAutoresizingMaskIntoConstraints = false }
     bodyWidth = body.widthAnchor.constraint(equalToConstant: 0)
     trayWidth = tray.widthAnchor.constraint(equalToConstant: 0)
-    trayHeightConstraint = tray.heightAnchor.constraint(equalToConstant: 48)
+    trayHeightConstraint = tray.heightAnchor.constraint(equalToConstant: Self.contextControlSize + tray.edgeInsets.top + tray.edgeInsets.bottom)
     noticeWidth = noticeRow.widthAnchor.constraint(equalToConstant: 0)
     content.addSubview(body)
     contextSurface.addSubview(tray)
