@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+import LodyCore
 import LodyData
 @testable import LodyMacApp
 
@@ -51,6 +52,29 @@ final class MacNewChatFlowTests: XCTestCase {
     XCTAssertEqual(project.titleOfSelectedItem, "lody-web")
   }
 
+  func testAnExplicitEmptyDraftConfigurationSurvivesAConversationDetour() throws {
+    for id in ["composer-machine", "composer-mode"] {
+      let (workspace, window) = host()
+      defer { window.close() }
+      workspace.open(nil)
+      let draft = try XCTUnwrap(workspace.splitViewItems[1].viewController.children.compactMap { $0 as? MacNewSessionController }.first)
+      let composer = try XCTUnwrap(draft.children.compactMap { $0 as? MacComposerController }.first)
+      let deadline = Date().addingTimeInterval(2)
+      while composer.model.form.current.loading, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+      let popup = try XCTUnwrap(composer.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == id })
+      popup.selectItem(at: popup.numberOfItems - 1)
+      if let action = popup.action { NSApp.sendAction(action, to: popup.target, from: popup) }
+      let choice = composer.model.choice
+      let machine = composer.model.form.current.machineId
+      XCTAssertTrue(composer.model.text.isEmpty)
+      workspace.open("s-landing")
+      workspace.open(nil)
+      XCTAssertEqual(composer.model.form.current.projectId, "p-ios", "explicit configuration is a retained draft even without text")
+      XCTAssertEqual(composer.model.form.current.machineId, machine)
+      XCTAssertEqual(composer.model.choice, choice)
+    }
+  }
+
   func testWorkspaceChangeDiscardsThePreviousPrivateDraft() throws {
     var state = MacFixtures.listState
     let changed = Notification.Name("mac-new-chat-workspace-changed")
@@ -71,6 +95,51 @@ final class MacNewChatFlowTests: XCTestCase {
     NotificationCenter.default.post(name: changed, object: nil)
     let current = try XCTUnwrap(window.contentView?.descendants(MacComposerTextView.self).first)
     XCTAssertEqual(current.string, "", "changing workspace must not expose a retained draft from the old scope")
+  }
+
+  func testRemovingTheDraftsProjectDuringADetourBlocksSendWithoutLosingText() throws {
+    var state = MacFixtures.listState
+    let changed = Notification.Name("mac-new-chat-project-removed")
+    let source = MacSessionsSource(changes: [changed], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    var sent = 0
+    let service = MacComposerService(options: { workspace, id in
+      var options = try await MacComposerFixture.service.options(workspace, id)
+      if let project = state.catalog.projects.first(where: { $0.id == id }) {
+        options.project = CreateProject(id: project.id, machineId: project.machineId, name: project.name, rootPath: project.rootPath)
+      }
+      return options
+    }, create: { _, _ in sent += 1 })
+    var environment = MacFixtures.environment
+    environment.sessions = source
+    var retained: MacNewSessionController?
+    environment.newSession = { let next = MacNewSessionController(source: source, service: service); retained = next; return next }
+    let workspace = MacWorkspaceController(environment: environment)
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentViewController = workspace
+    defer { window.close() }
+    workspace.open(nil)
+    let composer = try XCTUnwrap(retained?.children.compactMap { $0 as? MacComposerController }.first)
+    let deadline = Date().addingTimeInterval(2)
+    while composer.model.form.current.loading, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+    let input = try XCTUnwrap(composer.view.descendants(MacComposerTextView.self).first)
+    input.string = "Keep this draft in lody-ios"
+    input.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: input))
+    XCTAssertTrue(composer.model.canSend)
+    workspace.open("s-landing")
+    state.catalog.projects.removeAll { $0.id == "p-ios" }
+    NotificationCenter.default.post(name: changed, object: nil)
+    workspace.open(nil)
+    XCTAssertEqual(input.string, "Keep this draft in lody-ios")
+    XCTAssertFalse(composer.model.canSend, "cached creation options cannot authorize a removed project")
+    let project = try XCTUnwrap(composer.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "composer-project" })
+    XCTAssertTrue(project.titleOfSelectedItem?.contains("lody-ios") == true, "the unavailable original context remains visible")
+    input.onSubmit?()
+    XCTAssertEqual(sent, 0)
+    retained?.selectProject("p-web")
+    let resumed = Date().addingTimeInterval(2)
+    while composer.model.form.current.loading, Date() < resumed { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+    XCTAssertTrue(composer.model.canSend, "an explicit valid project restores sending")
   }
 }
 
@@ -126,6 +195,39 @@ final class MacSidebarTests: XCTestCase {
 
 @MainActor
 final class MacPaletteModelTests: XCTestCase {
+  func testRemovingTheComputerFilterRestoresTheDisplayedAllComputersScope() throws {
+    var state = MacFixtures.listState
+    let controller = MacPaletteController(state: state, mode: .projects)
+    let filter = try XCTUnwrap(controller.view.descendants(NSPopUpButton.self).first)
+    filter.selectItem(withTitle: "Mac mini")
+    if let action = filter.action { NSApp.sendAction(action, to: filter.target, from: filter) }
+    state.catalog.machineIds.removeAll { $0 == "m-mini" }
+    controller.update(state)
+    XCTAssertEqual(filter.titleOfSelectedItem, "All computers")
+    let table = try XCTUnwrap(controller.view.descendants(NSTableView.self).first)
+    XCTAssertEqual(table.numberOfRows, MacPaletteModel(state: state, mode: .projects).items(query: "").count + 1,
+                   "the visible scope and actual result filter must agree")
+  }
+
+  func testActionsNeverSubstituteAnotherResultAfterTheOriginalDisappears() throws {
+    for mode: MacPaletteModel.Mode in [.search, .projects] {
+      var state = MacFixtures.listState
+      let controller = MacPaletteController(state: state, mode: mode)
+      let field = try XCTUnwrap(controller.view.descendants(NSSearchField.self).first)
+      field.stringValue = mode == .search ? "Review" : "lody-ios"
+      field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+      let menu = try XCTUnwrap(controller.actionsMenu())
+      var picked: [MacPaletteModel.Destination] = []
+      controller.onPick = { picked.append($0) }
+      if mode == .search { state.catalog.sessions.removeAll { $0.id == "s-review" } }
+      else { state.catalog.projects.removeAll { $0.id == "p-ios" } }
+      field.stringValue = ""
+      controller.update(state)
+      menu.performActionForItem(at: 0)
+      XCTAssertTrue(picked.isEmpty, "an old menu cannot execute the new first result")
+    }
+  }
+
   func testChatSearchMatchesBranchesAndExcludesArchivedAndChildSessions() {
     var state = MacFixtures.listState
     state.catalog.sessions.append(SessionItem(id: "child", title: "mac-client child", projectId: "p-ios", parentSessionId: "s-mac"))

@@ -20,7 +20,7 @@ struct MacComposerModel {
   var missing: Missing? {
     guard mode == .newSession else { return nil }
     let page = form.current
-    if !form.chat && page.projectId.isEmpty { return .project }
+    if !form.chat && !form.projects.contains(where: { $0.id == page.projectId }) { return .project }
     if page.machine == nil { return .machine }
     if page.agent == nil { return .agent }
     return nil
@@ -36,6 +36,11 @@ struct MacComposerModel {
 
   var capability: Capability? { mode == .newSession ? form.current.capability : replyCapability }
   var choice: ModelChoice { mode == .newSession ? form.current.choice : replyChoice }
+  var projectName: String? {
+    guard !form.chat, !form.current.projectId.isEmpty else { return nil }
+    return form.projects.first { $0.id == form.current.projectId }?.name
+      ?? form.current.options?.project?.name ?? form.current.projectId
+  }
 
   var modes: [CapabilityChoice] { capability?.modes ?? [] }
   var models: [CapabilityChoice] { capability?.models ?? [] }

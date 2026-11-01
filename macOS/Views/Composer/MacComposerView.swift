@@ -204,8 +204,14 @@ final class MacComposerView: NSView, MacFileDropTarget {
     input.placeholder = String(localized: newSession ? "mac.composer.placeholder.new" : "mac.composer.placeholder.reply", bundle: .lodyMac)
     if newSession {
       let form = model.form
-      fill(project, form.projects.map(\.name) + [String(localized: "mac.composer.chat", bundle: .lodyMac)],
-           selected: form.chat ? form.projects.count : form.projects.firstIndex { $0.id == form.current.projectId })
+      var projects = form.projects.map(\.name) + [String(localized: "mac.composer.chat", bundle: .lodyMac)]
+      var selectedProject = form.chat ? form.projects.count : form.projects.firstIndex { $0.id == form.current.projectId }
+      if model.missing == .project, let name = model.projectName {
+        projects.append(String(localized: "mac.composer.unavailableProject \(name)", bundle: .lodyMac))
+        selectedProject = projects.count - 1
+      }
+      fill(project, projects, selected: selectedProject)
+      if projects.count > form.projects.count + 1 { project.lastItem?.isEnabled = false }
       let machines = form.current.machines
       fill(machine, machines.map(\.name), selected: machines.firstIndex { $0.id == form.current.machine?.id },
            empty: String(localized: "mac.composer.noMachine", bundle: .lodyMac))

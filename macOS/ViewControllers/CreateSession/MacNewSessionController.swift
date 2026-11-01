@@ -62,7 +62,7 @@ final class MacNewSessionController: NSViewController {
 
   private func updateHeading() {
     let form = composer.model.form
-    let name = form.projects.first { $0.id == form.current.projectId }?.name
+    let name = composer.model.projectName
     if !form.chat, let name {
       heading.title = String(localized: "mac.newSession.projectPrompt \(name)", bundle: .lodyMac)
     } else {

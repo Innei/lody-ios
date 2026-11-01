@@ -351,7 +351,10 @@
           }
         },
         "zh-Hans": {
-          "stringUnit": { "state": "translated", "value": "在 %@ 中开始什么？" }
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 中开始什么？"
+          }
         }
       }
     },
@@ -359,10 +362,16 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": { "state": "translated", "value": "Start a new chat" }
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start a new chat"
+          }
         },
         "zh-Hans": {
-          "stringUnit": { "state": "translated", "value": "开始新对话" }
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始新对话"
+          }
         }
       }
     },
@@ -4348,7 +4357,23 @@
       }
     },
     "native.runtime.sessionNotSynced": {},
-    "send.error.draftSaveShort": {}
+    "send.error.draftSaveShort": {},
+    "mac.composer.unavailableProject %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (Unavailable)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（不可用）"
+          }
+        }
+      }
+    }
   },
   "version": "1.0"
 }

@@ -16,8 +16,9 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   var onProjectChange: ((_ userInitiated: Bool) -> Void)?
   var onChooseProject: (() -> Void)?
   private var inheritedMachineId: String?
+  private var configured = false
 
-  var hasDraft: Bool { !model.text.isEmpty || !model.attachments.isEmpty }
+  var hasDraft: Bool { !model.text.isEmpty || !model.attachments.isEmpty || configured }
 
   func focusInput() { view.window?.makeFirstResponder(view1.input) }
   func showProjects() {
@@ -33,6 +34,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     } else if id == nil {
       model.form.switchPage(chat: true)
     } else { return }
+    if userInitiated { configured = true }
     inheritedMachineId = machineId
     render()
     onProjectChange?(userInitiated)
@@ -81,6 +83,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     optionsPanel.onFast = { [weak self] enabled in
       guard let self else { return }
       if model.mode == .newSession {
+        configured = true
         model.form.updateChoice(CreateLogic.withFastMode(model.capability, model.choice, enabled: enabled))
       } else {
         onReplyChoice?(["fast": enabled])
@@ -159,6 +162,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
           model.form.selectMachine(machineId)
         }
       } catch {
+        guard !Task.isCancelled else { return }
         self?.model.form.failOptions(chat: chat)
       }
       self?.render()
@@ -177,6 +181,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   @objc private func machineChanged() {
     let machines = model.form.current.machines
     guard machines.indices.contains(view1.machine.indexOfSelectedItem) else { return }
+    configured = true
     model.form.selectMachine(machines[view1.machine.indexOfSelectedItem].id)
     render()
   }
@@ -184,6 +189,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   @objc private func agentChanged() {
     let agents = model.form.current.agents
     guard agents.indices.contains(view1.agent.indexOfSelectedItem) else { return }
+    configured = true
     model.form.selectAgent(agents[view1.agent.indexOfSelectedItem].key)
     render()
   }
@@ -201,6 +207,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     guard modes.indices.contains(view1.mode.indexOfSelectedItem) else { return }
     choice.modeId = modes[view1.mode.indexOfSelectedItem].id
     if model.mode == .newSession {
+      configured = true
       model.form.updateChoice(choice)
     } else if let modeId = choice.modeId {
       onReplyChoice?(["permissionId": modeId])
@@ -210,6 +217,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
 
   private func applyChoice(_ choice: ModelChoice) {
     if model.mode == .newSession {
+      configured = true
       model.form.updateChoice(choice)
     } else {
       var body: [String: Any] = ["modelId": choice.modelId ?? "", "effort": choice.effort ?? ""]

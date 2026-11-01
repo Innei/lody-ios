@@ -201,6 +201,35 @@ final class MacNewSessionCatalogTests: XCTestCase {
     while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
   }
 
+  func testACancelledOptionsFailureCannotInvalidateTheNewSelection() throws {
+    var pending: [String: CheckedContinuation<CreationOptions, Error>] = [:]
+    var completed: Set<String> = []
+    let service = MacComposerService(options: { _, id in
+      let id = id ?? ""
+      defer { completed.insert(id) }
+      return try await withCheckedThrowingContinuation { pending[id] = $0 }
+    }, create: { _, _ in })
+    var model = MacComposerModel(mode: .newSession)
+    model.form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [
+      CreateProject(id: "p1", machineId: "m1", name: "First"), CreateProject(id: "p2", machineId: "m1", name: "Second"),
+    ])
+    model.form.open(projectId: "p1", context: nil)
+    let controller = MacComposerController(model: model, service: service)
+    _ = controller.view
+    wait { pending["p1"] != nil }
+    controller.selectProject("p2")
+    wait { pending["p2"] != nil }
+    let second = try XCTUnwrap(pending.removeValue(forKey: "p2"))
+    second.resume(returning: CreationOptions(sessionId: "second", agents: [], capabilities: []))
+    wait { completed.contains("p2") }
+    XCTAssertFalse(controller.model.form.current.failed)
+    let first = try XCTUnwrap(pending.removeValue(forKey: "p1"))
+    first.resume(throwing: OutboxError.scopeExpired)
+    wait { completed.contains("p1") }
+    XCTAssertFalse(controller.model.form.current.failed, "a cancelled request must not poison the newer selection")
+    XCTAssertEqual(controller.model.form.current.options?.sessionId, "second")
+  }
+
   func testAFailedOptionsLoadRetriesWhenTheCatalogChanges() {
     var state = SessionListState(userId: "u", workspaceId: "w", catalog: SessionCatalog(projects: [SessionProject(id: "p1", name: "lody-ios")]))
     var calls = 0

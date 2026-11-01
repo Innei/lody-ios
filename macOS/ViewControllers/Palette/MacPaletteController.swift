@@ -191,6 +191,7 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
       filter.lastItem?.representedObject = id
     }
     if let item = filter.itemArray.first(where: { ($0.representedObject as? String) == machineId }) { filter.select(item) }
+    else { machineId = ""; filter.selectItem(at: 0) }
   }
 
   @objc private func filterChanged() {
@@ -205,17 +206,23 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
   @objc private func confirm() { if let selected { onPick?(selected.destination) } }
 
   @objc func showActions() {
-    guard let selected else { return }
+    guard let menu = actionsMenu() else { return }
+    menu.popUp(positioning: nil, at: NSPoint(x: actions.bounds.maxX, y: actions.bounds.maxY), in: actions)
+  }
+
+  func actionsMenu() -> NSMenu? {
+    guard let selected else { return nil }
     let menu = NSMenu()
-    let open = NSMenuItem(title: primaryTitle(selected), action: #selector(confirm), keyEquivalent: "\r")
+    let open = NSMenuItem(title: primaryTitle(selected), action: #selector(pickAction(_:)), keyEquivalent: "\r")
     open.target = self
+    open.representedObject = selected.destination
     menu.addItem(open)
     switch selected.destination {
     case .chat(let id):
       if let session = state.catalog.session(id) {
-        let item = NSMenuItem(title: String(localized: "mac.palette.newInProject", bundle: .lodyMac), action: #selector(newInProject(_:)), keyEquivalent: "")
+        let item = NSMenuItem(title: String(localized: "mac.palette.newInProject", bundle: .lodyMac), action: #selector(pickAction(_:)), keyEquivalent: "")
         item.target = self
-        item.representedObject = session.projectId
+        item.representedObject = MacPaletteModel.Destination.project(session.projectId.isEmpty ? nil : session.projectId)
         menu.addItem(item)
       }
     case .manageProjects: break
@@ -224,12 +231,19 @@ final class MacPaletteController: NSViewController, NSTableViewDataSource, NSTab
       item.target = self
       menu.addItem(item)
     }
-    menu.popUp(positioning: nil, at: NSPoint(x: actions.bounds.maxX, y: actions.bounds.maxY), in: actions)
+    return menu
   }
 
-  @objc private func newInProject(_ item: NSMenuItem) {
-    let id = item.representedObject as? String
-    onPick?(.project(id.flatMap { $0.isEmpty ? nil : $0 }))
+  @objc private func pickAction(_ item: NSMenuItem) {
+    guard let destination = item.representedObject as? MacPaletteModel.Destination else { return }
+    switch destination {
+    case .chat(let id):
+      guard let session = state.catalog.session(id), !session.archived, session.parentSessionId == nil else { return }
+    case .project(let id):
+      if let id, !state.catalog.projects.contains(where: { $0.id == id }) { return }
+    case .newChat, .manageProjects: break
+    }
+    onPick?(destination)
   }
   @objc private func manageProjects() { onPick?(.manageProjects) }
 
