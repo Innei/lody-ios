@@ -234,6 +234,22 @@ final class MacNewSessionCatalogTests: XCTestCase {
 
 @MainActor
 final class MacComposerOptionsTests: XCTestCase {
+  func testModelSummaryReadsAsTwoAdjacentNativeTextLines() throws {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyChoice = ModelChoice(modelId: "a", effort: "high")
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "codex",
+      models: [CapabilityChoice(id: "a", name: "Model A")], reasoningEfforts: ["a": ["high"]])
+    panel.render(model)
+    panel.view.setFrameSize(panel.preferredContentSize)
+    panel.viewDidLayout()
+    let effort = try XCTUnwrap(panel.view.descendants(NSTextField.self).first { $0.stringValue == "High" })
+    let heading = try XCTUnwrap(panel.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-model-list" })
+    let lineHeight = max(effort.fittingSize.height, heading.fittingSize.height)
+    XCTAssertLessThanOrEqual(effort.frame.midY - heading.frame.midY, lineHeight + 4,
+      "the current effort and model must read as adjacent text lines, rather than separate tall rows")
+  }
+
   func testReplyStateAppliesFastAndModelDefaultsInOneChange() throws {
     let capability = Capability(machineId: "m", cliType: "builtin", agentType: "codex", configOptions: [
       ConfigOption(id: "fast", name: "Fast", type: "boolean", currentValue: .bool(false)),

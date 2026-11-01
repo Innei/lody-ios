@@ -73,11 +73,12 @@ final class MacComposerOptionsController: NSViewController {
   override func viewDidLayout() {
     super.viewDidLayout()
     let width = view.bounds.width, height = view.bounds.height
-    let headingWidth = min(width - 88, heading.fittingSize.width)
-    heading.frame = NSRect(x: (width - headingWidth) / 2, y: height - 64, width: headingWidth, height: 24)
-    effort.frame = NSRect(x: 44, y: height - 36, width: width - 88, height: 24)
-    fast.frame = NSRect(x: 8, y: height - 40, width: 32, height: 32)
-    reset.frame = NSRect(x: width - 40, y: height - 40, width: 32, height: 32)
+    let headingSize = heading.fittingSize
+    let headingWidth = min(width - 88, headingSize.width)
+    effort.frame = NSRect(x: 44, y: height - 12 - effort.fittingSize.height, width: width - 88, height: effort.fittingSize.height)
+    heading.frame = NSRect(x: (width - headingWidth) / 2, y: effort.frame.minY - 2 - headingSize.height, width: headingWidth, height: headingSize.height)
+    fast.frame = NSRect(x: 8, y: effort.frame.midY - 16, width: 32, height: 32)
+    reset.frame = NSRect(x: width - 40, y: effort.frame.midY - 16, width: 32, height: 32)
     slider.frame = NSRect(x: 12, y: 8, width: width - 24, height: 44)
     back.frame = NSRect(x: 8, y: height - 40, width: 28, height: 32)
     listTitle.frame = NSRect(x: 40, y: height - 36, width: width - 56, height: 24)
@@ -160,7 +161,9 @@ final class MacComposerOptionsController: NSViewController {
     back.isHidden = !listing
     listTitle.isHidden = !listing
     choices.isHidden = !listing
-    var height: CGFloat = model.efforts.isEmpty ? 72 : 116
+    let summaryHeight = effort.fittingSize.height + 2 + heading.fittingSize.height
+    var height: CGFloat = 12 + summaryHeight + 12
+    if !model.efforts.isEmpty { height = 12 + summaryHeight + 2 + 44 + 8 }
     if listing { height = min(364, choices.contentHeight + 52) }
     preferredContentSize = NSSize(width: 296, height: height)
     onResize?(preferredContentSize)
