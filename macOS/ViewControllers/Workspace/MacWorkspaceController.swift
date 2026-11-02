@@ -9,6 +9,11 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private var pane: MacSessionPane?
   private var newSession: NSViewController?
   private var scope: [String]
+  private let inspection = MacInspectionController()
+  private var inspectionLayout = MacInspectionLayout()
+  private var inspectionCache: [String: MacInspectionModel] = [:]
+  private var placingInspection = false
+  private var placedWidth: CGFloat = -1
   private var palette: MacPaletteWindowController?
   private var streaming = false
   private var sizedSidebar = false
@@ -51,8 +56,23 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     addSplitViewItem(side)
     let content = NSSplitViewItem(viewController: detail)
     content.minimumThickness = 420
+    content.canCollapse = true
     content.automaticallyAdjustsSafeAreaInsets = true
     addSplitViewItem(content)
+    let inspector = NSSplitViewItem(viewController: inspection)
+    inspector.minimumThickness = 320; inspector.maximumThickness = 900
+    inspector.canCollapse = true; inspector.isCollapsed = true
+    addSplitViewItem(inspector)
+    inspection.onState = { [weak self] state in
+      guard let self else { return }
+      inspectionLayout.isOpen = state.isOpen
+      placeInspection()
+    }
+    inspection.onClose = { [weak self] in self?.closeInspection() }
+    inspection.onExpand = { [weak self] in
+      guard let self else { return }
+      inspectionLayout.expanded.toggle(); placeInspection()
+    }
     sidebar.onSelect = { [weak self] id in self?.open(id) }
     observers.append(NotificationCenter.default.addObserver(forName: .lodyMacOpenSession, object: nil, queue: .main) { [weak self] note in
       let id = note.userInfo?["sessionId"] as? String
@@ -75,6 +95,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   override func viewDidLayout() {
     super.viewDidLayout()
+    if splitView.bounds.width != placedWidth { placeInspection() }
     guard !sizedSidebar, view.window != nil, splitView.bounds.width >= 760 else { return }
     sizedSidebar = true
     splitView.setPosition(320, ofDividerAt: 0)
@@ -124,9 +145,11 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     guard id != sessionId || pane == nil else { return }
     let context = sessionId.flatMap { environment.sessions.read().catalog.session($0) }
     pane?.setStreaming(false)
+    pane?.inspectionModel?.suspend()
     sessionId = id
     sidebar.select(sessionId: id)
     guard let id else {
+      inspection.bind(nil); inspectionLayout.isOpen = false; inspectionLayout.expanded = false; placeInspection()
       pane = nil
       let controller = newSession ?? environment.newSession()
       newSession = controller
@@ -147,8 +170,16 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       return
     }
     let next = environment.pane(id)
+    if let session = next as? MacSessionController, let previous = inspectionCache[id] { session.inspectionModel = previous }
+    if let model = next.inspectionModel { inspectionCache[id] = model }
+    next.onInspect = { [weak self] in self?.placeInspection() }
     pane = next
+    inspection.bind(next.inspectionModel)
+    inspectionLayout.isOpen = next.inspectionModel?.state.isOpen ?? false
+    inspectionLayout.expanded = false
     detail.show(next)
+    placeInspection()
+    if let model = next.inspectionModel, model.state.isOpen { model.select(model.state.selection) }
     next.setStreaming(streaming)
     refreshChrome()
   }
@@ -159,6 +190,8 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     if next != scope {
       palette?.dismiss(restoreFocus: false)
       scope = next
+      inspectionCache.values.forEach { $0.suspend() }; inspectionCache = [:]
+      inspection.bind(nil)
       newSession = nil
       pane?.setStreaming(false)
       pane = nil
@@ -181,6 +214,53 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   func setStreaming(_ on: Bool) {
     streaming = on
     pane?.setStreaming(on)
+  }
+
+  @objc func toggleInspection(_ sender: Any?) {
+    guard let model = pane?.inspectionModel else { return }
+    if model.state.isOpen { closeInspection() }
+    else {
+      if model.files.isEmpty, model.state.selection == .changes { model.showChanges(entry: model.latestTurn) }
+      else { model.state.isOpen = true; model.select(model.state.selection) }
+    }
+  }
+
+  private func closeInspection() {
+    pane?.inspectionModel?.state.isOpen = false
+    inspectionLayout.isOpen = false; inspectionLayout.expanded = false
+    placeInspection()
+    (pane as? MacSessionController)?.focusTranscript()
+  }
+
+  override func toggleSidebar(_ sender: Any?) {
+    let placement = inspectionLayout.resolve(width: splitView.bounds.width)
+    if placement.sidebarHidden {
+      inspectionLayout.userSidebarHidden = false
+      if inspectionLayout.isOpen, splitView.bounds.width < 320 + 420 + (inspectionLayout.preferredWidth ?? 620) + 2 { closeInspection() }
+    } else { inspectionLayout.userSidebarHidden = true }
+    placeInspection()
+  }
+
+  private func placeInspection() {
+    guard isViewLoaded, splitViewItems.count == 3, !placingInspection, splitView.bounds.width > 0 else { return }
+    placingInspection = true
+    defer { placingInspection = false }
+    placedWidth = splitView.bounds.width
+    let placement = inspectionLayout.resolve(width: placedWidth)
+    splitViewItems[2].maximumThickness = inspectionLayout.expanded ? CGFloat.greatestFiniteMagnitude : 900
+    splitViewItems[0].isCollapsed = placement.sidebarHidden
+    splitViewItems[1].isCollapsed = placement.chatHidden
+    splitViewItems[2].isCollapsed = !inspectionLayout.isOpen
+    if inspectionLayout.isOpen, !inspectionLayout.expanded {
+      splitView.setPosition(placedWidth - placement.panelWidth - splitView.dividerThickness, ofDividerAt: 1)
+    }
+  }
+
+  override func splitViewDidResizeSubviews(_ notification: Notification) {
+    super.splitViewDidResizeSubviews(notification)
+    guard !placingInspection, inspectionLayout.isOpen, !inspectionLayout.expanded,
+          splitView.inLiveResize, splitView.subviews.count == 3 else { return }
+    inspectionLayout.preferredWidth = splitView.subviews[2].bounds.width
   }
 }
 

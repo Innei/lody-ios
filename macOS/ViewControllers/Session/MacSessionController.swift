@@ -23,6 +23,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var queueHeight: NSLayoutConstraint?
   private var queueGap: NSLayoutConstraint?
   var onSteer: ((String) -> Void)?
+  var inspectionModel: MacInspectionModel?
+  var onInspect: (() -> Void)?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
   func focusTranscript() { transcript.focus() }
@@ -105,6 +107,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     transcript.media = source.media
     transcript.onPreview = { [weak self] in self?.preview($0) }
+    transcript.onChanges = { [weak self] id in self?.inspectChanges(row: id) }
     if let replies = composer as? MacComposerController {
       replies.onRunChange = { [weak self] in self?.queuePage?.refreshControls() }
       replies.onSend = { [weak transcript] in transcript?.noteSend() }
@@ -158,8 +161,25 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private func rebuild() {
     if parsed.json != feed.entriesJSON { parsed = MacTranscriptModel.Parsed(feed.entriesJSON) }
     model = MacTranscriptModel(parsed: parsed, pendingJSON: pendingJSON())
+    updateInspectionEntries()
     permission.show(model.permission, ready: feed.status == "live")
     paint()
+  }
+
+  private func updateInspectionEntries() {
+    guard let inspectionModel, let entries = parsed.entries else { return }
+    inspectionModel.latestTurn = entries.reversed().compactMap { entry -> MacInspectionTurn? in
+      let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }.map { MacInspectionFile(path: $0.path, add: $0.add, del: $0.del, kind: $0.status) }
+      guard !files.isEmpty else { return nil }
+      return MacInspectionTurn(id: entry.id, title: entry.timestamp ?? MacInspectionUI.text("mac.inspection.thisTurn"), files: files)
+    }.first
+  }
+
+  private func inspectChanges(row: String) {
+    guard let inspectionModel, let entryID = model.groups[row], let entry = parsed.entries?.first(where: { $0.id == entryID }) else { return }
+    let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }.map { MacInspectionFile(path: $0.path, add: $0.add, del: $0.del, kind: $0.status) }
+    inspectionModel.showChanges(entry: .init(id: entry.id, title: entry.timestamp ?? MacInspectionUI.text("mac.inspection.thisTurn"), files: files))
+    onInspect?()
   }
 
   private func paint() {

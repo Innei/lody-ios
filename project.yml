@@ -367,6 +367,7 @@ targets:
         excludes:
           - DebugHome.json
       - path: iOS/Resources/Shaders/ChatEffortHeat.metal
+      - path: iOS/Models/Files/Diff/InlineDiffModel.swift
     settings:
       base:
         PRODUCT_NAME: Lody

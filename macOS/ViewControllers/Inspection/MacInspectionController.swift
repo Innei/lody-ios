@@ -12,6 +12,20 @@ final class MacInspectionController: NSViewController {
   let body = NSView()
   let status = NSTextField(labelWithString: "")
   private let header = NSStackView()
+  private(set) var model: MacInspectionModel?
+  private let diff = MacDiffView()
+  private let range = NSPopUpButton()
+  private let changeBody = NSStackView()
+  private var preview: NSView?
+
+  func bind(_ model: MacInspectionModel?) {
+    self.model?.changed = nil
+    self.model = model
+    guard let model else { state = .init(); render(); return }
+    model.changed = { [weak self] in self?.renderModel() }
+    _ = view
+    renderModel()
+  }
 
   override func loadView() {
     view = NSView()
@@ -47,7 +61,61 @@ final class MacInspectionController: NSViewController {
   init() { super.init(nibName: nil, bundle: nil) }
 
   func render() { guard isViewLoaded else { return }; tabs.render(state) }
-  private func changed() { render(); onState?(state) }
+  private func changed() { model?.state = state; render(); onState?(state) }
+
+  func renderModel() {
+    guard let model else { return }
+    state = model.state; render(); onState?(state)
+    onSelect = { [weak model] in model?.select($0) }
+    switch state.selection {
+    case .changes:
+      range.removeAllItems()
+      range.addItems(withTitles: [MacInspectionUI.text("mac.inspection.thisTurn"), MacInspectionUI.text("mac.inspection.workspace")])
+      range.item(at: 0)?.isEnabled = model.selectedTurn != nil || model.latestTurn != nil
+      range.selectItem(at: model.turn == nil ? 1 : 0)
+      range.target = self; range.action = #selector(changeRange)
+      range.setAccessibilityIdentifier("inspection-range")
+      let refresh = MacInspectionUI.button(MacInspectionUI.text("mac.inspection.refresh"), "inspection-refresh") { [weak model] in model?.refresh() }
+      let toolbar = NSStackView(views: [range, NSView(), refresh]); toolbar.spacing = 8
+      toolbar.edgeInsets = .init(top: 4, left: 10, bottom: 4, right: 10)
+      changeBody.arrangedSubviews.forEach { changeBody.removeArrangedSubview($0); $0.removeFromSuperview() }
+      changeBody.orientation = .vertical; changeBody.spacing = 0; changeBody.alignment = .leading
+      changeBody.addArrangedSubview(toolbar)
+      toolbar.widthAnchor.constraint(equalTo: changeBody.widthAnchor).isActive = true
+      if model.files.isEmpty {
+        let text = model.changesError ?? MacInspectionUI.text(model.changesBusy ? "mac.inspection.loading" : "mac.inspection.noChanges")
+        let message = MacInspectionUI.message(text, retry: model.changesError == nil ? nil : { [weak model] in model?.refresh() })
+        changeBody.addArrangedSubview(message)
+      } else {
+        if let error = model.changesError { changeBody.addArrangedSubview(NSTextField(wrappingLabelWithString: error)) }
+        changeBody.addArrangedSubview(diff)
+        diff.widthAnchor.constraint(equalTo: changeBody.widthAnchor).isActive = true
+        diff.heightAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
+        diff.setContentHuggingPriority(.init(1), for: .vertical)
+        diff.render(model)
+      }
+      display(changeBody)
+      status.stringValue = model.turn?.title ?? model.base
+    case .document(let target):
+      renderDocument(target)
+    }
+  }
+
+  @objc private func changeRange() {
+    guard let model else { return }
+    let turn = range.indexOfSelectedItem == 0 ? model.selectedTurn ?? model.latestTurn : nil
+    model.showChanges(entry: turn)
+  }
+
+  func revealDiff(_ path: String) { diff.reveal(path) }
+
+  private func renderDocument(_ target: MacInspectionTarget) {
+    guard let model else { return }
+    let load = model.documents[target]
+    status.stringValue = target.path
+    let message = load?.error ?? MacInspectionUI.text("mac.inspection.loading")
+    display(MacInspectionUI.message(message, retry: { [weak model] in model?.loadDocument(target, force: true) }))
+  }
 
   func display(_ content: NSView) {
     _ = view

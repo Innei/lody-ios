@@ -142,7 +142,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.lodySessionNavigation, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace]
+    [.lodySessionNavigation, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .init("lody.inspection")]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -152,6 +152,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
     let item = NSToolbarItem(itemIdentifier: itemIdentifier)
     switch itemIdentifier {
+    case .init("lody.inspection"):
+      item.label = String(localized: "mac.inspection.changes", bundle: .lodyMac)
+      item.image = NSImage(systemSymbolName: "sidebar.right", accessibilityDescription: item.label)
+      item.target = workspace; item.action = #selector(MacWorkspaceController.toggleInspection(_:))
+      return item
     case .lodySessionNavigation:
       item.label = String(localized: "mac.menu.session", bundle: .lodyMac)
       item.view = navigation

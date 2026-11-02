@@ -10,6 +10,8 @@ enum SessionControllerFactory {
       sessionId: sessionId, source: .live(sessionId: sessionId, state: SessionPublished.state()), composer: bridge.composer
     )
     pane.retained = bridge
+    let state = SessionPublished.state()
+    pane.inspectionModel = MacInspectionModel(service: .live(session: sessionId, workspace: state.workspaceId, user: state.userId))
     pane.onFeed = { [weak bridge] in bridge?.update($0) }
     pane.onStreaming = { [weak bridge] in bridge?.setStreaming($0) }
     pane.onRetry = { [weak bridge] in bridge?.retry() }

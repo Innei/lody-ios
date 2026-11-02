@@ -11,6 +11,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   private var items: [String: MacTranscriptItem] = [:]
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
+  var onChanges: ((String) -> Void)?
   var onDropFiles: (([URL]) -> Void)?
   var media: CKMediaProvider?
 
@@ -116,8 +117,12 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     case .plan(_, let markdown): return MacPlanView(markdown: markdown, size: reading.textSize)
     case .activity(_, let symbol, let text, let attention, let running):
       return MacActivityLine(symbol: symbol, text: text, attention: attention, running: running)
-    case .changes(_, let text):
-      return MacActivityLine(symbol: "plus.forwardslash.minus", text: text, attention: false, running: false)
+    case .changes(let id, let text):
+      let button = MacActionButton(title: text) { [weak self] in self?.onChanges?(id) }
+      button.image = NSImage(systemSymbolName: "plus.forwardslash.minus", accessibilityDescription: nil)
+      button.imagePosition = .imageLeading; button.isBordered = false; button.alignment = .left
+      button.setAccessibilityIdentifier("transcript-changes")
+      return button
     case .notice(_, let text):
       let label = NSTextField(wrappingLabelWithString: text)
       label.textColor = .systemRed
