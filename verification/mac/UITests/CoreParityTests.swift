@@ -50,7 +50,7 @@ final class CoreParityTests: LodyMacUITestCase {
       eventually("clearing the input returns to stop") { scene.buttons["composer-stop"].exists }
       scene.buttons["composer-stop"].click()
       eventually("stopping returns to idle send") { !scene.buttons["composer-stop"].exists }
-      XCTAssertFalse(scene.buttons["transcript-changes"].exists)
+      XCTAssertTrue(scene.buttons["transcript-changes"].exists)
       XCTAssertEqual(scene.sheets.count, 0)
       attach("core-stopped-\(appearance)", scene)
     }

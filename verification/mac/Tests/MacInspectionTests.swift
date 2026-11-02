@@ -5,6 +5,25 @@ import LodyData
 
 @MainActor
 final class MacInspectionTests: XCTestCase {
+  func testClosingALoadingFileAllowsItToBeOpenedAgain() async {
+    var release: CheckedContinuation<MacInspectionContent, Error>?
+    var reads = 0
+    let model = MacInspectionModel(service: .init(diff: { _, _ in .init(handle: "test", oldKind: "text", newKind: "text") }, changes: { .init(base: "main", files: []) }, read: { _ in
+      reads += 1
+      if reads == 1 { return try await withCheckedThrowingContinuation { release = $0 } }
+      return .stored("reopened")
+    }, directory: { _ in .init(entries: [], truncated: false) }))
+    model.show(.file("slow.swift"))
+    for _ in 0..<20 where release == nil { await Task.yield() }
+    model.state.close(.file("slow.swift"))
+    release?.resume(returning: .stored("old"))
+    await model.waitForLoads()
+    XCTAssertNil(model.documents[.file("slow.swift")]?.value)
+    model.show(.file("slow.swift"))
+    await model.waitForLoads()
+    XCTAssertEqual(reads, 2)
+    XCTAssertEqual(model.documents[.file("slow.swift")]?.value, .stored("reopened"))
+  }
   func testFilePreviewUsesReadonlyNativeTextInsteadOfTheLoadingPlaceholder() async throws {
     let handle = ContentStore.shared.put(.init(data: Data("let answer = 42\n".utf8), kind: "text", path: "Answer.swift", session: "test", mimeType: nil))
     let model = MacInspectionModel(service: .init(diff: { _, _ in .init(handle: "test", oldKind: "text", newKind: "text") }, changes: { .init(base: "main", files: []) }, read: { _ in .stored(handle) }, directory: { _ in .init(entries: [], truncated: false) }))

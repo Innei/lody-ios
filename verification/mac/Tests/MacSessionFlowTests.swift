@@ -241,7 +241,7 @@ final class MacRunControlTests: XCTestCase {
     XCTAssertTrue(view.descendants(NSButton.self).filter { ["composer-queue", "composer-changes"].contains($0.accessibilityIdentifier()) }.isEmpty)
   }
 
-  func testWithdrawnDiffInteractionLeavesAReadOnlyChangesSummary() {
+  func testChangesSummaryOpensTheOwningTranscriptEntry() throws {
     let view = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 760, height: 500))
     let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
     window.contentView = view
@@ -249,8 +249,12 @@ final class MacRunControlTests: XCTestCase {
     model.items = [.changes(id: "files", text: "App.swift +1 −1")]
     view.render(model)
     _ = view.rowViews
-    XCTAssertTrue(view.descendants(NSButton.self).filter { $0.accessibilityIdentifier() == "transcript-changes" }.isEmpty)
-    XCTAssertTrue(view.descendants(NSTextField.self).contains { $0.stringValue.contains("App.swift") })
+    var selected: String?
+    view.onChanges = { selected = $0 }
+    let button = try XCTUnwrap(view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "transcript-changes" })
+    button.performClick(nil)
+    XCTAssertEqual(selected, "files")
+    XCTAssertTrue(button.title.contains("App.swift"))
   }
 
   func testQueuedMessagesAppearAboveTheComposerWithoutAnAttachedSheet() async throws {

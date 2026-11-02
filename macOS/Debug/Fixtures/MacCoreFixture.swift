@@ -73,6 +73,7 @@ final class MacCoreFixture {
     fixture.bridge = bridge
     let pane = MacSessionController(sessionId: "s-mac", source: fixture.source, composer: bridge.composer)
     pane.retained = bridge
+    pane.inspectionModel = MacInspectionModel(service: MacInspectionFixture().service)
     pane.onFeed = { [weak bridge] in bridge?.update($0) }
     pane.onSteer = { [weak bridge] in bridge?.controlTurn("steer", messageId: $0) }
     _ = pane.view

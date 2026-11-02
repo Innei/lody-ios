@@ -20,11 +20,14 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
   private var filtered: [Node] = []
   var onPick: ((MacInspectionTarget) -> Void)?
 
-  init(model: MacInspectionModel) { self.model = model; super.init(nibName: nil, bundle: nil) }
+  init(model: MacInspectionModel) {
+    self.model = model; super.init(nibName: nil, bundle: nil)
+    preferredContentSize = NSSize(width: 350, height: 500)
+  }
   required init?(coder: NSCoder) { nil }
 
   override func loadView() {
-    view = NSView()
+    view = NSView(frame: NSRect(x: 0, y: 0, width: 350, height: 500))
     search.placeholderString = MacInspectionUI.text("mac.inspection.filterFiles")
     search.delegate = self; search.setAccessibilityIdentifier("inspection-file-filter")
     let column = NSTableColumn(identifier: .init("file")); column.title = MacInspectionUI.text("mac.inspection.filesTitle")

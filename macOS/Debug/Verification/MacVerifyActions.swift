@@ -13,7 +13,8 @@ enum MacVerifyActions {
 
   static func perform(_ action: MacVerifyAction, in window: NSWindow, menu: NSMenu? = NSApp.mainMenu) -> String? {
     guard let root = window.contentView else { return "no content view" }
-    let views = descendants(root).filter { !$0.isHiddenOrHasHiddenAncestor }
+    let roots = [root] + (window.childWindows ?? []).compactMap(\.contentView)
+    let views = roots.flatMap(descendants).filter { !$0.isHiddenOrHasHiddenAncestor }
     switch action {
     case .click(let text):
       if let button = views.compactMap({ $0 as? NSButton }).first(where: {

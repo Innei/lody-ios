@@ -14,6 +14,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private var inspectionCache: [String: MacInspectionModel] = [:]
   private var placingInspection = false
   private var placedWidth: CGFloat = -1
+  private var inspectionWidth: NSLayoutConstraint?
   private var palette: MacPaletteWindowController?
   private var streaming = false
   private var sizedSidebar = false
@@ -63,6 +64,9 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     inspector.minimumThickness = 320; inspector.maximumThickness = 900
     inspector.canCollapse = true; inspector.isCollapsed = true
     addSplitViewItem(inspector)
+    let width = inspection.view.widthAnchor.constraint(equalToConstant: 620)
+    width.priority = .defaultHigh
+    inspectionWidth = width
     inspection.onState = { [weak self] state in
       guard let self else { return }
       inspectionLayout.isOpen = state.isOpen
@@ -255,16 +259,17 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     splitViewItems[0].isCollapsed = placement.sidebarHidden
     splitViewItems[1].isCollapsed = placement.chatHidden
     splitViewItems[2].isCollapsed = !inspectionLayout.isOpen
-    if inspectionLayout.isOpen, !inspectionLayout.expanded {
-      splitView.setPosition(placedWidth - placement.panelWidth - splitView.dividerThickness, ofDividerAt: 1)
-    }
+    inspectionWidth?.constant = placement.panelWidth
+    inspectionWidth?.isActive = inspectionLayout.isOpen && !inspectionLayout.expanded
+    splitView.layoutSubtreeIfNeeded()
   }
 
   override func splitViewDidResizeSubviews(_ notification: Notification) {
     super.splitViewDidResizeSubviews(notification)
     guard !placingInspection, inspectionLayout.isOpen, !inspectionLayout.expanded,
-          splitView.inLiveResize, splitView.subviews.count == 3 else { return }
-    inspectionLayout.preferredWidth = splitView.subviews[2].bounds.width
+          NSApp.currentEvent?.type == .leftMouseDragged, view.window?.inLiveResize != true else { return }
+    inspectionLayout.preferredWidth = inspection.view.bounds.width
+    inspectionWidth?.constant = inspection.view.bounds.width
   }
 }
 

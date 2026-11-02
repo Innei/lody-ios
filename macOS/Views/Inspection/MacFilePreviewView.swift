@@ -207,7 +207,10 @@ private final class MacInspectionLineRuler: NSRulerView {
   override var isFlipped: Bool { true }
   override func drawHashMarksAndLabels(in rect: NSRect) {
     guard let text, let layout = text.layoutManager, let container = text.textContainer else { return }
-    NSColor.windowBackgroundColor.setFill(); rect.fill()
+    NSGraphicsContext.saveGraphicsState()
+    defer { NSGraphicsContext.restoreGraphicsState() }
+    NSBezierPath(rect: bounds).addClip()
+    NSColor.windowBackgroundColor.setFill(); bounds.fill()
     var visible = text.visibleRect; visible.origin.y -= text.textContainerOrigin.y
     let range = layout.glyphRange(forBoundingRect: visible, in: container)
     layout.enumerateLineFragments(forGlyphRange: range) { line, _, _, glyphs, _ in

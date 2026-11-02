@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { coreDraft, coreParity } from './cases/core-parity.mts';
+import { inspection } from './cases/inspection.mts';
 import { accent } from './cases/accent.mts';
 import { attachments } from './cases/attachments.mts';
 import { composerNew, composerReply } from './cases/composer.mts';
@@ -20,6 +21,7 @@ import { capture, dump, launch, route, startSession } from './lib/verify.mts';
 import type { Session } from './lib/verify.mts';
 
 const cases: Record<string, (session: Session) => Promise<void>> = {
+  inspection,
   'core-parity': coreParity,
   'core-draft': coreDraft,
   'sign-in': signIn,

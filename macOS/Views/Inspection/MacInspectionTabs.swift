@@ -17,7 +17,7 @@ final class MacInspectionTabs: NSView {
     changes.bezelStyle = .accessoryBarAction
     changes.target = self; changes.action = #selector(showChanges)
     changes.setAccessibilityIdentifier("inspection-changes-tab")
-    files.orientation = .horizontal; files.spacing = 4
+    files.orientation = .horizontal; files.spacing = 4; files.translatesAutoresizingMaskIntoConstraints = false
     files.setHuggingPriority(.required, for: .vertical)
     scroll.documentView = files; scroll.drawsBackground = false
     scroll.hasHorizontalScroller = true; scroll.autohidesScrollers = true
@@ -29,6 +29,7 @@ final class MacInspectionTabs: NSView {
       row.topAnchor.constraint(equalTo: topAnchor), row.bottomAnchor.constraint(equalTo: bottomAnchor),
       scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 40),
       files.heightAnchor.constraint(equalTo: scroll.heightAnchor),
+      files.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor), files.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
     ])
   }
   required init?(coder: NSCoder) { nil }
@@ -53,8 +54,6 @@ final class MacInspectionTabs: NSView {
       close.widthAnchor.constraint(equalToConstant: 22).isActive = true
       files.addArrangedSubview(row)
     }
-    files.layoutSubtreeIfNeeded()
-    files.setFrameSize(files.fittingSize)
   }
   @objc private func showChanges() { select?(.changes) }
 }

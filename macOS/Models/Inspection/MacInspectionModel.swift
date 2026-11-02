@@ -129,7 +129,8 @@ final class MacInspectionModel {
     documents[target, default: .init()].busy = true
     let read = attachmentReads[target] ?? { [service] in try await service.read(target) }
     perform("document:" + String(describing: target), operation: read) { [weak self] result in
-      guard let self, state.tabs.contains(where: { $0.target == target }) else { return }
+      guard let self else { return }
+      guard state.tabs.contains(where: { $0.target == target }) else { documents[target] = nil; return }
       documents[target, default: .init()].busy = false
       switch result {
       case .success(let value): documents[target]?.value = value; documents[target]?.error = nil

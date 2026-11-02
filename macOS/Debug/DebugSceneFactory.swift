@@ -31,6 +31,9 @@ enum DebugSceneFactory {
       ]
     }
     return [
+      Scene(id: "inspection", title: "File inspection", windows: { MacInspectionFixture.windows() }),
+      Scene(id: "inspection-small", title: "File inspection · minimum width", windows: { MacInspectionFixture.windows(width: 760) }),
+      Scene(id: "inspection-wide", title: "File inspection · wide", windows: { MacInspectionFixture.windows(width: 1440) }),
       Scene(id: "core-parity", title: "Core features", windows: { MacCoreFixture.windows() }),
       Scene(id: "core-draft", title: "Durable drafts", size: NSSize(width: 860, height: 480), make: { MacCoreDraftController() }),
       Scene(id: "sign-in", title: "Sign in") { [signInWindow(code: nil, title: "Sign in")] },
