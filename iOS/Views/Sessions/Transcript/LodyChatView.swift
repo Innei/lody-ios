@@ -134,7 +134,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var lastRenderTime = 0.0
   var renderTailLength = 0
   var rows: [String: ChatRow] = [:]
-  var pendingEntries: String?
+  var pendingEntries: (json: String, animate: Bool)?
+  var pendingSnapshotEntries: Set<String> = []
+  var snapshotEntries: Set<String> = []
   var preparedEntries: PreparedChatEntries?
   var workDurationTimer: Timer?
   let preparation = DispatchQueue(label: "app.innei.lody.chat", qos: .userInitiated)

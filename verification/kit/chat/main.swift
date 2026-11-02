@@ -447,8 +447,46 @@ assert(
 )
 print("Process summary enumerates activity and keeps partial failures off the title")
 
+// Loading placeholders are not a live baseline: opening an unfinished reply
+// must show its existing prose immediately, including the current tail.
+let restoredLive = try JSONDecoder().decode([ChatEntry].self, from: Data(multiStep.utf8))
+var loadingStream = ChatStream()
+loadingStream.receive([], animate: true, at: 0)
+loadingStream.receive(restoredLive, animate: true, at: 1)
+assert(loadingStream.presentation[0].items[0].text == "先检查"
+  && loadingStream.presentation[0].items[3].text == "继续验证"
+  && loadingStream.presentation[0].items[6].text == "结论",
+  "Opening a running reply after loading must not replay any existing text")
+assert(!loadingStream.hasPending, "Restored history must not enter the reveal queue")
+let restoredRows = ChatTranscript(entries: restoredLive).rows()
+assert(restoredRows.filter { $0.kind == "text" && $0.itemID != "final" }.allSatisfy { !$0.streaming },
+  "Text before a later process or text segment is already complete")
+assert(restoredRows.first { $0.itemID == "final" }?.streaming == true,
+  "The current text tail remains eligible for future live appends")
+var steppedStream = ChatStream()
+steppedStream.receive(restoredLive.map { entry in
+  var entry = entry
+  entry.items = Array(entry.items.prefix(1))
+  return entry
+}, animate: false, at: 0)
+steppedStream.receive(restoredLive, animate: true, at: 1)
+assert(steppedStream.presentation[0].items[3].text == "继续验证",
+  "A live batch containing several segments must not animate already closed text")
+assert(steppedStream.presentation[0].items[6].text == "" && steppedStream.hasPending,
+  "Only the newly arriving text tail is paced")
+var toolAfterText = restoredLive
+toolAfterText[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"next-tool","type":"tool_call","status":"in_progress"}"#.utf8
+)))
+steppedStream.receive(toolAfterText, animate: true, at: 1.01)
+assert(!steppedStream.hasPending && steppedStream.presentation[0].items[6].text == "结论",
+  "A later process settles the previous text instead of keeping its animation queue alive")
+assert(ChatTranscript(entries: steppedStream.presentation).rows().filter { $0.kind == "text" }.allSatisfy { !$0.streaming },
+  "An active tool does not make earlier text stream")
+print("Chat restoration: placeholders, existing prose and closed segments do not replay")
+
 var stream = ChatStream()
-stream.receive([], animate: true)
+stream.receive([], animate: false)
 let live = try JSONDecoder().decode([ChatEntry].self, from: Data(json.utf8))
 stream.receive(live, animate: true, at: 0)
 assert(stream.hasPending)
@@ -469,7 +507,7 @@ let corrected = json.replacingOccurrences(of: "最终答案", with: "更正后�
 stream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(corrected.utf8)), animate: true)
 assert(stream.presentation[0].items[2].text == "更正后的答案", "Replacement must not replay an obsolete suffix")
 var unicodeStream = ChatStream()
-unicodeStream.receive([], animate: true)
+unicodeStream.receive([], animate: false)
 let unicode = json.replacingOccurrences(of: "最终答案", with: "👩🏽‍💻你好é")
 unicodeStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(unicode.utf8)), animate: true, at: 0)
 unicodeStream.advance(at: 0.024)
@@ -479,7 +517,7 @@ assert(!unicodeStream.hasPending && unicodeStream.presentation[0].items[2].text 
 print("Chat stream: paced bursts, completion drain, history, replacement and Unicode passed")
 // Leaving the viewport drains presentation pacing without losing input or completion.
 var offscreenStream = ChatStream()
-offscreenStream.receive([], animate: true)
+offscreenStream.receive([], animate: false)
 offscreenStream.receive(live, animate: true, at: 0)
 let offscreenID = live[0].id
 offscreenStream.finish(entries: [offscreenID])
@@ -501,14 +539,14 @@ assert(ChatStream.deferringMarkdown([latestText], previous: frozenProjection) ==
 print("Offscreen stream: full input, correction, completion and removal without reveal backlog passed")
 
 var burstStream = ChatStream()
-burstStream.receive([], animate: true)
+burstStream.receive([], animate: false)
 let burst = json.replacingOccurrences(of: "最终答案", with: String(repeating: "文", count: 3000))
 burstStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(burst.utf8)), animate: true, at: 0)
 for tick in 1...30 { burstStream.advance(at: Double(tick) * 0.048) }
 assert(!burstStream.hasPending, "Large bursts must increase batch size instead of taking minutes")
 
 var fastStream = ChatStream()
-fastStream.receive([], animate: true)
+fastStream.receive([], animate: false)
 for chunk in 1...240 {
   var input = live
   let source = String(repeating: "word", count: chunk * 15)

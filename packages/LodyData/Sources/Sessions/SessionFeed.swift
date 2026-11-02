@@ -27,6 +27,8 @@ public struct SessionFeedState: Equatable, Sendable {
   public var composerJSON: String?
   public var preview: SessionBrowserPreview?
   public var transcript = SessionTranscriptFacts()
+  /// False for cache/bootstrap/recovery snapshots; true for subsequent live revisions.
+  public var isLiveUpdate = false
 
   public init(status: String = "syncing", revision: Int = -1, overflow: Bool = false, entriesJSON: String = "[]", billableTurnCount: Int? = nil, composerJSON: String? = nil, preview: SessionBrowserPreview? = nil, transcript: SessionTranscriptFacts = SessionTranscriptFacts()) {
     self.status = status
@@ -83,6 +85,7 @@ public final class SessionFeed {
   private let workspaceId: String
   private var cursor = (generation: -1, revision: -1)
   private var received = false
+  private var awaitingSnapshot = true
   private var unwatch: (@MainActor () -> Void)?
   private var token = 0
   private var reportedStatus = ""
@@ -103,6 +106,7 @@ public final class SessionFeed {
     token += 1
     cursor = (-1, -1)
     received = false
+    awaitingSnapshot = true
     state = SessionFeedState()
     changed?()
     let token = token
@@ -130,6 +134,7 @@ public final class SessionFeed {
 
   public func reconnect() {
     guard unwatch != nil else { return }
+    awaitingSnapshot = true
     service.reconnect(sessionId)
   }
 
@@ -148,6 +153,8 @@ public final class SessionFeed {
             self.apply(envelope, generation: generation)
           } else if ["starting", "background", "failed", "stopped"].contains(phase) {
             self.state.status = phase
+            self.state.isLiveUpdate = false
+            self.awaitingSnapshot = true
             self.changed?()
           }
           self.reportStatus()
@@ -168,16 +175,21 @@ public final class SessionFeed {
       return
     }
     guard envelope.accepted(generation: generation, after: cursor), let revision = envelope.revision else { return }
+    let isLiveUpdate = !awaitingSnapshot && state.status == "live" && cursor.generation == generation
     cursor = (generation, revision)
     state.overflow = false
     if envelope.status == "live" {
       received = true
+      awaitingSnapshot = false
       state = SessionFeedState(
         status: "live", revision: revision, entriesJSON: envelope.entriesJSON,
         billableTurnCount: envelope.billableTurnCount, composerJSON: envelope.composerJSON, preview: envelope.preview, transcript: envelope.transcript
       )
+      state.isLiveUpdate = isLiveUpdate
     } else {
       state.status = envelope.status
+      state.isLiveUpdate = false
+      awaitingSnapshot = true
     }
     changed?()
   }

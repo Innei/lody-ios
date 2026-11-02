@@ -58,6 +58,14 @@ public struct ChatEntry: Decodable, Sendable {
   public var isRunning: Bool { role == "assistant" && !finished }
   public var isQueued: Bool { role == "user" && status == "queued" }
 
+  /// A later visible process closes earlier prose even while this reply runs.
+  public var textTailID: String? {
+    guard let item = items.last(where: {
+      !$0.hidesFromTranscript && !($0.type == "system_notice" && ($0.name == nil || $0.name == "agent_warning"))
+    }), item.type == "text" || item.type == "thought" else { return nil }
+    return item.itemId
+  }
+
   public init(id: String, role: String, status: String, finished: Bool, timestamp: String?, endedAt: Double?, startedAt: Double?, permissionWaitMs: Double? = nil, items: [ChatItem], fileDiffs: [ChatFileDiff]?, inputConfig: ChatTurnInput? = nil, tokenUsage: ChatTurnUsage? = nil, modelInfo: ModelInfo? = nil, userTurnId: String? = nil, executionId: String? = nil, executionFinished: Bool? = nil, steerCount: Int? = nil, delivery: String? = nil, holdOpen: Bool? = nil, canSteer: Bool? = nil) {
     self.id = id
     self.role = role
@@ -660,7 +668,7 @@ public struct ChatTranscript: Sendable {
         var row = ChatRow(id: entry.id + ":" + item.itemId, entryID: entry.id,
           kind: item.type, text: item.text ?? "", itemID: item.itemId,
           running: entry.isRunning && item.status == "in_progress", attention: attention,
-          streaming: entry.isRunning && (item.type == "text" || item.type == "thought"))
+          streaming: entry.isRunning && item.itemId == entry.textTailID)
         switch item.type {
         case "system_notice" where item.isChatFailure:
           row.kind = "chat_failed"

@@ -33,8 +33,8 @@ final class ProcessController: UIViewController {
   }
 
   // The owning session projects each revision; this page never opens or closes a runtime subscription.
-  func update(_ entries: String) {
-    chat.setEntries(entries)
+  func update(_ entries: String, animate: Bool = true) {
+    chat.setEntries(entries, animate: animate)
     chat.scheduleUpdate()
   }
 }

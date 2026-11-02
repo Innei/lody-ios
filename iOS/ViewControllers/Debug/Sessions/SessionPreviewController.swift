@@ -6,9 +6,14 @@ final class SessionPreviewController: SessionController {
   private let fixture: SessionPreviewFixture
   private let probe = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
   private var presentations: NSObjectProtocol?
+  private var streamTimer: Timer?
+  private var streamFailures = Set<String>()
+  private var streamPhases = Set<String>()
+  private var sawPacing = false
+  private var sawFade = false
 
   init(scenario: String) {
-    let fixture = SessionPreviewFixture(offline: scenario == "offline", tasks: scenario == "tasks")
+    let fixture = SessionPreviewFixture(offline: scenario == "offline", tasks: scenario == "tasks", restore: scenario == "stream-restore")
     self.fixture = fixture
     var environment = SessionSendEnvironment.live
     environment.composer = SessionComposerService(options: { _, _ in
@@ -30,7 +35,10 @@ final class SessionPreviewController: SessionController {
       feed: SessionFeedService(
         watch: { _, receive in fixture.watch(receive) },
         reconnect: { _ in fixture.reconnect() },
-        cached: { _, _, _ in SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply", tasks: fixture.tasks) }
+        cached: { _, _, _ in
+          if fixture.restore { return nil }
+          return SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply", tasks: fixture.tasks)
+        }
       ),
       environment: environment,
       itemDetail: ItemDetailService(load: { params in
@@ -54,6 +62,7 @@ final class SessionPreviewController: SessionController {
   required init?(coder: NSCoder) { fatalError() }
 
   isolated deinit {
+    streamTimer?.invalidate()
     if let presentations { NotificationCenter.default.removeObserver(presentations) }
   }
 
@@ -69,6 +78,29 @@ final class SessionPreviewController: SessionController {
       MainActor.assumeIsolated { self?.fixture.record("present") }
     }
     updateProbe()
+    if fixture.restore {
+      streamTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated { self?.updateProbe() }
+      }
+    }
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    configureStreamActions()
+  }
+
+  override func render() {
+    super.render()
+    if isViewLoaded { configureStreamActions() }
+  }
+
+  private func configureStreamActions() {
+    guard fixture.restore else { return }
+    LodyNavigationHeader.of(navigationItem).rightItems = [
+      UIBarButtonItem(title: "Append", primaryAction: UIAction { [weak self] _ in self?.fixture.append() }),
+      UIBarButtonItem(title: "Catch up", primaryAction: UIAction { [weak self] _ in self?.feed?.reconnect() }),
+    ]
   }
 
   override func present(_ controller: UIViewController, animated: Bool, completion: (() -> Void)? = nil) {
@@ -77,6 +109,27 @@ final class SessionPreviewController: SessionController {
   }
 
   private func updateProbe() {
+    if fixture.restore {
+      let phase = fixture.phase
+      if chat.transcript.entries.last?.items.last?.text == phase,
+         let tail = chat.rows["restore:tail"] {
+        streamPhases.insert(phase)
+        for (id, text) in [("first", SessionPreviewFixture.first), ("middle", SessionPreviewFixture.middle)] {
+          if chat.rows["restore:" + id]?.text != text { streamFailures.insert(phase + ":" + id) }
+          if chat.store.isAnimating(id: "restore:" + id) { streamFailures.insert(phase + ":" + id + ":fade") }
+        }
+        if phase == "live" {
+          sawPacing = sawPacing || (tail.text.count > SessionPreviewFixture.initialTail.count && tail.text.count < fixture.tail.count)
+          sawFade = sawFade || chat.store.isAnimating(id: tail.id)
+        } else if tail.text != fixture.tail || chat.store.isAnimating(id: tail.id) {
+          streamFailures.insert(phase + ":tail")
+        }
+      }
+      let value: [String: Any] = ["phase": phase, "seen": streamPhases.sorted(), "failures": streamFailures.sorted(),
+        "paced": sawPacing, "faded": sawFade]
+      probe.accessibilityValue = String(decoding: try! JSONSerialization.data(withJSONObject: value), as: UTF8.self)
+      return
+    }
     probe.accessibilityValue = fixture.log.joined(separator: ",")
   }
 }
@@ -89,13 +142,20 @@ private final class SessionPreviewFixture {
   var changed: (() -> Void)?
   private let offline: Bool
   let tasks: Bool
+  let restore: Bool
+  private(set) var phase = "restore"
+  private(set) var tail = initialTail
+  static let first = "I checked the current implementation. This paragraph is complete and should stay visible."
+  static let middle = "The first check passed. This second paragraph is also complete while the agent keeps working."
+  static let initialTail = "I am now checking the remaining behavior."
   private var catalog: SessionCatalog
   private var receive: (@MainActor (SessionRuntimeEvent) -> Void)?
   private var revision = 1
 
-  init(offline: Bool, tasks: Bool, now: Double = LodyRelativeTime.now()) {
+  init(offline: Bool, tasks: Bool, restore: Bool = false, now: Double = LodyRelativeTime.now()) {
     self.offline = offline
     self.tasks = tasks
+    self.restore = restore
     catalog = SessionCatalog(
       projects: [SessionProject(id: "preview-lody", name: "Lody", rootPath: "/Users/preview/lody")],
       sessions: [
@@ -120,7 +180,9 @@ private final class SessionPreviewFixture {
   func watch(_ receive: @escaping @MainActor (SessionRuntimeEvent) -> Void) -> @MainActor () -> Void {
     self.receive = receive
     record("watch")
-    emit()
+    if restore {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.emitRestoration() }
+    } else { emit() }
     return { [weak self] in
       self?.receive = nil
       self?.record("unwatch")
@@ -130,7 +192,34 @@ private final class SessionPreviewFixture {
   func reconnect() {
     record("reconnect")
     revision += 1
-    emit(forceLive: true)
+    if restore {
+      phase = "catchup"
+      tail += " Changes received while away appear immediately."
+      emitRestoration()
+    } else { emit(forceLive: true) }
+  }
+
+  func append() {
+    phase = "live"
+    tail += " Only these newly arriving words should stream into view."
+    revision += 1
+    emitRestoration()
+  }
+
+  private func emitRestoration() {
+    let object: [String: Any] = ["v": 1, "status": "live", "revision": revision, "entries": [
+      ["id": "restore", "role": "assistant", "status": "running", "finished": false, "items": [
+        ["itemId": "first", "type": "text", "text": Self.first],
+        ["itemId": "tool-one", "type": "tool_call", "status": "completed", "title": "Read file"],
+        ["itemId": "middle", "type": "text", "text": Self.middle],
+        ["itemId": "tool-two", "type": "tool_call", "status": "completed", "title": "Run checks"],
+        ["itemId": "tail", "type": "text", "text": tail],
+        ["itemId": "phase", "type": "system_notice", "skipTranscript": true, "text": phase],
+      ]],
+    ]]
+    let session = String(decoding: try! JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+    receive?(.init(generation: 1, state: "live", sessionId: Self.sessionId, session: session))
+    record(phase)
   }
 
   func write(_ id: String, _ change: SessionWrite) async throws {
