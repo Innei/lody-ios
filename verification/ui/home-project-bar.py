@@ -34,6 +34,21 @@ ui.wait(lambda items: 'st-streams' not in ids(items) and 'st-review' in ids(item
 assert 'toggle:pinned' not in ids(ui.state()), 'The Pinned group hides while filtered'
 ui.capture('bar-filtered')
 
+def assert_creation_project(name):
+    ui.axe('tap', '--label', catalog.text('tabs.newSession'), '--post-delay', '.8')
+    ui.element('create-session-input')
+    project = ui.element('project')
+    ui.capture('create-' + name)
+    assert name in (project.get('AXLabel') or ''), f'New session must preselect {name}: {project}'
+    close = catalog.text('accessibility.closeSheet', title=catalog.text('create.title'))
+    ui.axe('tap', '--label', close, '--post-delay', '.8')
+    ui.element('project-bar')
+
+
+assert_creation_project('lody-ios')
+ui.axe('tap', '--id', 'project-chip:states:lody-cloud', '--post-delay', '.5')
+assert_creation_project('lody-cloud')
+
 ui.axe('tap', '--id', 'project-chip:all', '--post-delay', '.8')
 ui.wait(lambda items: 'st-streams' in ids(items) or 'toggle:states:lody-cloud' in ids(items), 'All must restore every project')
 

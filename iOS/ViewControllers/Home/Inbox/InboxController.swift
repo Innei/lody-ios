@@ -7,6 +7,7 @@ final class InboxController: UIViewController {
   private let chrome = InboxChrome()
   private let projectBar = InboxProjectBar()
   private let projectIndex = InboxProjectIndex()
+  private var creationProjectId: String?
   private lazy var actions = SessionActions(source: source)
   private var mode = InboxController.storedIndex("inboxView")
   private var sort = InboxSort.allCases[InboxController.storedIndex("inboxProjectSort")]
@@ -75,6 +76,7 @@ final class InboxController: UIViewController {
 
   func render() {
     guard isViewLoaded else { return }
+    creationProjectId = nil
     let state = source.state
     loadViews(state)
     guard !state.userId.isEmpty else {
@@ -105,6 +107,9 @@ final class InboxController: UIViewController {
       let shown = chips.count > 1 && traitCollection.horizontalSizeClass != .regular
       let stored = storedFilter(state)
       let filter = shown && chips.contains { $0.id == stored } ? stored : InboxSections.allFilter
+      if catalog.projects.contains(where: { $0.id == filter && !SessionRows.isChat($0.id) }) {
+        creationProjectId = filter
+      }
       projectBar.update(chips, selected: filter)
       list.setTopAccessory(shown ? projectBar : nil, height: InboxProjectBar.height)
       let sections = InboxSections.projects(catalog, expanded: expanded, sort: sort, pinOrder: pinOrder, filter: filter)
@@ -321,7 +326,9 @@ final class InboxController: UIViewController {
       LodyToastOverlay.shared.show(message: String(localized: "tabs.toast.signInFirst", bundle: .lody), kind: "error")
       return
     }
-    SessionActions.create(["workspaceId": state.workspaceId, "zoomSourceLabel": String(localized: "tabs.newSession", bundle: .lody)])
+    var fields: [String: Any] = ["workspaceId": state.workspaceId, "zoomSourceLabel": String(localized: "tabs.newSession", bundle: .lody)]
+    if let creationProjectId { fields["projectId"] = creationProjectId }
+    SessionActions.create(fields)
   }
 
   private func loadPreferences() {
