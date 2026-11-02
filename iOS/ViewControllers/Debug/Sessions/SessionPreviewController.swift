@@ -10,6 +10,17 @@ final class SessionPreviewController: SessionController {
   init(scenario: String) {
     let fixture = SessionPreviewFixture(offline: scenario == "offline", tasks: scenario == "tasks")
     self.fixture = fixture
+    var environment = SessionSendEnvironment.live
+    environment.composer = SessionComposerService(options: { _, _ in
+      let models = [CapabilityChoice(id: "agent-model", name: "Agent Model"), CapabilityChoice(id: "alternate", name: "Alternate Model")]
+      return CreationOptions(sessionId: SessionPreviewFixture.sessionId, agents: [], capabilities: [
+        Capability(machineId: "preview-mac", cliType: "builtin", agentType: "codex", models: models,
+          reasoningEfforts: ["agent-model": ["low", "medium", "high"], "alternate": ["low", "medium", "high"]], configOptions: [
+            ConfigOption(id: "model", name: "Model", category: "model", type: "select", currentValue: .string("agent-model"), options: models),
+            ConfigOption(id: "reasoning_effort", name: "Effort", category: "thought_level", type: "select", currentValue: .string("medium"), options: ["low", "medium", "high"].map { CapabilityChoice(id: $0, name: $0) }),
+          ]),
+      ])
+    }, tier: { _, _ in nil })
     super.init(
       sessionId: SessionPreviewFixture.sessionId, findQuery: scenario == "find" ? "needle" : "",
       source: SessionSource(
@@ -21,6 +32,7 @@ final class SessionPreviewController: SessionController {
         reconnect: { _ in fixture.reconnect() },
         cached: { _, _, _ in SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply", tasks: fixture.tasks) }
       ),
+      environment: environment,
       itemDetail: ItemDetailService(load: { params in
         .init(itemId: params.itemId, rev: 1, blocks: [.object([
           "type": .string("terminal_output"), "output": .string("Session tool detail"),
@@ -89,7 +101,7 @@ private final class SessionPreviewFixture {
       sessions: [
         SessionItem(
           id: Self.sessionId, title: "Session preview", status: "idle", projectId: "preview-lody",
-          lastMessageAt: now - 60_000, branchName: "feature/native-session", machineId: "preview-mac",
+          lastMessageAt: now - 60_000, branchName: "feature/native-session", machineId: "preview-mac", cliType: "builtin", agentType: "codex",
           pullRequests: [.init(repository: "Innei/lody-ios", number: 31, status: "open", ci: "f")]
         ),
       ],

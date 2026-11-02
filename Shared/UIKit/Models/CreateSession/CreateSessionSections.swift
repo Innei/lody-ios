@@ -53,7 +53,7 @@ enum CreateSessionSections {
       subtitle: unavailable ?? text("create.label.machine"), image: "desktopcomputer",
       disclosure: !page.machines.isEmpty, navigates: !page.machines.isEmpty)
     let modelRow = LodyListRow.item(
-      "model", capability.map { CreateModelOptions.summary($0, page.choice) } ?? text("model.default"),
+      "model", capability.map { CreateModelOptions.summary($0, page.choice) } ?? text("model.unavailable"),
       subtitle: text("create.label.model"), image: "cpu",
       action: capability != nil, disclosure: capability != nil, navigates: capability != nil)
     let agent = page.agent

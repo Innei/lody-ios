@@ -67,7 +67,7 @@ time.sleep(1)
 shot('ultra-flow')
 frame = element('composer-effort-slider')['frame']
 axe('swipe', '--start-x', str(frame['x'] + frame['width'] - 16), '--start-y', str(frame['y'] + 22), '--end-x', str(frame['x'] + 16), '--end-y', str(frame['y'] + 22), '--duration', '0.6')
-assert catalog.text('native.chat.composer.defaultEffort') in element('composer-model-menu')['AXLabel']
+assert catalog.text('model.effortUnavailable') in element('composer-model-menu')['AXLabel']
 time.sleep(1)
 recording.send_signal(signal.SIGINT)
 recording.wait(timeout=10)
@@ -77,7 +77,7 @@ axe('tap', '--id', 'composer-model-menu')
 shot('models')
 axe('tap', '--label', 'GPT-6 Astra', '--element-type', 'Button')
 time.sleep(0.5)
-assert catalog.text('native.chat.composer.modelPicker', model='GPT-6 Astra', effort=catalog.text('native.chat.composer.defaultEffort')) == element('composer-model-menu')['AXLabel'], 'Model switch must reset effort'
+assert catalog.text('native.chat.composer.modelPicker', model='GPT-6 Astra', effort=catalog.format_value(catalog.text('model.followAgent'), [catalog.text('model.effortUnavailable')])) == element('composer-model-menu')['AXLabel'], 'Model switch must reset effort'
 slide(2 / 5)
 assert 'Medium' in element('composer-model-menu')['AXLabel']
 shot('panel')

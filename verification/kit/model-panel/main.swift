@@ -69,6 +69,26 @@ panel.perform(NSSelectorFromString("changeEffort"))
 precondition(picked == "unchanged", "Highest effort is already the full slider")
 print("PASS: Grok menu-order efforts still fill the slider from low to extra high")
 
+var inherited = options
+inherited.modelId = ""
+inherited.effort = ""
+inherited.inheritedModelId = "gpt"
+inherited.inheritedEffort = "medium"
+panel.render(inherited)
+precondition(model.configuration?.subtitle == "GPT", "Inherited model must display the Agent's actual model")
+precondition(inherited.effortTitle == "Medium", "Inherited effort must display the Agent's actual level")
+inherited.inheritedEffort = "ultra"
+panel.render(inherited)
+precondition(inherited.effortTitle == "Ultra" && effortSlider.isUltra, "An updated inherited effort must update label and visual state")
+inherited.modelId = "custom-model"
+inherited.effort = "medium"
+panel.render(inherited)
+precondition(model.configuration?.subtitle == "custom-model" && inherited.effortTitle == "Medium", "Explicit selections must win over inherited values")
+inherited.modelId = "default"
+inherited.effort = "default"
+precondition(inherited.modelTitle == "GPT" && inherited.effortTitle == "Ultra", "Provider aliases must resolve through actual Agent values")
+print("PASS: inherited model and effort display actual values, refresh and preserve explicit overrides")
+
 var deepseek = ChatComposerOptions()
 deepseek.modelId = "deepseek"
 deepseek.efforts = [

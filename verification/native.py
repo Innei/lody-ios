@@ -105,7 +105,7 @@ checks = {
     'live-activity-registration': ['iOS/Platform/Notifications/LiveActivityRegistration.swift'],
     'live-activity': ['Shared/LiveActivity/LodyActivityAttributes.swift', 'Shared/LiveActivity/LiveActivityCatalog.swift'],
     'page-progress': ['Shared/UIKit/Views/List/LodyPageProgress.swift'],
-    'create-session': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift'],
+    'create-session': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/CreateModelOptions.swift'],
     'unified-patch': ['packages/LodyData/Sources/Files/UnifiedPatch.swift'],
     'create-draft': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'Outbox/OutboxRecord.swift', 'CreateSession/CreateDraftRecord.swift'],
     'share-ingest': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'Shared/ShareSupport/ShareStore.swift', str(root / 'Extensions/Share/ShareIngest.swift')],

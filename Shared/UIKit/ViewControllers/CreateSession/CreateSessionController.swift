@@ -145,6 +145,8 @@ final class CreateSessionController: UIViewController {
     let fast = CreateLogic.fastMode(capability, page.choice)
     var options: [String: Any] = [
       "modelId": page.choice.modelId ?? "", "effort": page.choice.effort ?? "",
+      "inheritedModelId": CreateLogic.resolvedModelId(capability) ?? "",
+      "inheritedEffort": CreateLogic.resolvedEffort(capability, ModelChoice(modelId: page.choice.modelId)) ?? "",
       "models": (capability?.models ?? []).map { ["id": $0.id, "title": $0.name] },
       "efforts": CreateLogic.effortsFor(capability, modelId: page.choice.modelId).map { ["id": $0, "title": $0] },
     ]

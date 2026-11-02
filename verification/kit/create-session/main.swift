@@ -18,6 +18,36 @@ let claudeCapability = Capability(
   reasoningEfforts: ["opus": ["low", "high"]])
 let options = CreationOptions(sessionId: "s", project: CreateProject(id: "p1", machineId: "m1", name: "P"), agents: [codex, claude], capabilities: [claudeCapability])
 
+// Inheriting a model must reveal the machine's current values without pinning them.
+do {
+  var capability = Capability(machineId: "m1", cliType: "builtin", agentType: "codex",
+    models: [CapabilityChoice(id: "a", name: "Model A"), CapabilityChoice(id: "b", name: "Model B")],
+    reasoningEfforts: ["a": ["low", "high"], "b": ["high"]], configOptions: [
+      ConfigOption(id: "model", name: "Model", category: "model", type: "select", currentValue: .string("a")),
+      ConfigOption(id: "reasoning_effort", name: "Effort", category: "thought_level", type: "select", currentValue: .string("low"), options: [CapabilityChoice(id: "low", name: "Low"), CapabilityChoice(id: "high", name: "High")]),
+    ])
+  let inherited = ModelChoice()
+  check(CreateModelOptions.summary(capability, inherited) == "Model A · low", "Inherited summary must reveal actual model and effort")
+  capability.configOptions?[0].currentValue = .string("b")
+  capability.configOptions?[1].currentValue = .string("high")
+  check(CreateModelOptions.summary(capability, inherited) == "Model B · high", "Inherited summary must follow updated Agent values")
+  check(CreateModelOptions.summary(capability, ModelChoice(modelId: "a", effort: "low")) == "Model A · low", "Explicit choices override Agent values")
+  capability.configOptions?[1].currentValue = .string("low")
+  check(CreateLogic.resolvedEffort(capability, ModelChoice(modelId: "b")) == nil, "An inherited level unavailable on the selected model must not be displayed as effective")
+  check(CreateLogic.resolvedEffort(capability, ModelChoice(modelId: "default")) == nil, "An inherited model alias must use the actual model's effort support")
+  capability.configOptions = []
+  check(CreateLogic.resolvedModelId(capability) == nil, "A catalog without a current model must not guess its first model")
+  check(CreateLogic.resolvedEffort(capability, inherited) == nil, "Missing effort must stay unknown")
+  check(CreateModelOptions.summary(capability, ModelChoice(modelId: "uncatalogued")) == "uncatalogued", "A session model absent from the catalog must retain its actual identifier")
+  capability.configOptions = [
+    ConfigOption(id: "model", name: "Model", category: "model", type: "select", currentValue: .string("default")),
+    ConfigOption(id: "effort", name: "Effort", category: "thought_level", type: "select", currentValue: .string("default"), options: [CapabilityChoice(id: "default", name: "Default")]),
+  ]
+  check(CreateLogic.resolvedModelId(capability, modelId: "default") == nil, "A provider's default alias is not an actual model identifier")
+  check(CreateLogic.resolvedEffort(capability, ModelChoice(effort: "default")) == nil, "A provider's default alias must not be presented as an actual effort")
+  check(inherited == ModelChoice(), "Display resolution must preserve inheritance for sending and persistence")
+}
+
 // Chat context is remembered without overwriting the last project.
 do {
   let project = CreateLogic.withSelection(nil, target: "p1", selection: ProjectPrefs(machineId: "m1", agentKey: "m1:c1"), chat: false)

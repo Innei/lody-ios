@@ -35,7 +35,7 @@ SUITES = {
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'session-search-pad', 'wide-panel', 'pad-layout']
-CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'devices', 'workspace-general', 'morph', 'sheet-zoom-project', 'mentions-production', 'composer-fullscreen']
+CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'devices', 'workspace-general', 'morph', 'sheet-zoom-project', 'mentions-production', 'composer-fullscreen', 'model-values']
 HOME_CASES = {'home-states', 'home-project-bar', 'home-project-index', 'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout', 'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'}
 PREVIEW = {
     'role-mention-chat': 'mention-chat',
@@ -43,6 +43,7 @@ PREVIEW = {
     'agent-roles': 'agent-roles-preview',
     'archived-sessions': 'archived-sessions-preview',
     'session-native': 'session-preview-live',
+    'model-values': 'session-preview-live',
     'session-simulator': 'session-preview-live',
     'session-taps': 'session-preview-tasks',
     'chat-thread': 'session-preview-tasks',
@@ -167,6 +168,7 @@ READY = {
     'agent-roles': 'list-unavailable-action',
     'archived-sessions': 'archived-preview-writes',
     'session-native': 'session-preview-probe',
+    'model-values': 'session-preview-probe',
     'session-simulator': 'session-preview-probe',
     'permission-native': 'permission-preview-probe',
     'native-diff': 'diff-preview:changes:docs/superpowers/.diff-check.md',
@@ -534,7 +536,7 @@ try:
                     script = Path(__file__).with_name('devices.py')
                 if case in ('diagnostics', 'directory', 'project', 'activity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
                     script = Path(__file__).with_name(f'{case}.py')
-                if case in ('archived-sessions', 'session-native', 'session-taps', 'chat-thread', 'session-simulator', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
+                if case in ('model-values', 'archived-sessions', 'session-native', 'session-taps', 'chat-thread', 'session-simulator', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
                     script = Path(__file__).with_name(f'{case}.py')
                 if case == 'file-selection':
                     script = Path(__file__).with_name('file-selection.py')
@@ -621,9 +623,15 @@ try:
                 if case == 'proposed-plan':
                     # Document, search and business dispatch outcomes share this case.
                     check_timeout = 360
-                if case in ('quick-replies', 'model-memory'):
+                if case == 'quick-replies':
                     # Editing, restart or several model/agent round trips share these checks.
                     check_timeout = 420
+                if case == 'model-memory':
+                    # Model/agent memory plus inherited model and effort checks in both selection hosts.
+                    check_timeout = 540
+                if case == 'model-values':
+                    # Reset between the chat and creation hosts, then exercise inheritance in each.
+                    check_timeout = 300
                 if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
                     check_timeout = 360
                 if case == 'ipad-chrome':

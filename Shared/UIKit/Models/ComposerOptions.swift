@@ -9,6 +9,8 @@ struct ChatComposerOption: Decodable {
 struct ChatComposerOptions: Decodable {
   var modelId = ""
   var effort = ""
+  var inheritedModelId: String?
+  var inheritedEffort: String?
   var permissionId: String?
   var permissions: [ChatComposerOption]?
   var fast: Bool?
@@ -17,24 +19,39 @@ struct ChatComposerOptions: Decodable {
 }
 
 extension ChatComposerOptions {
+  var effectiveModelId: String { modelId.isEmpty || modelId.lowercased() == "default" ? inheritedModelId ?? "" : modelId }
+  var effectiveEffort: String { effort.isEmpty || effort.lowercased() == "default" ? inheritedEffort ?? "" : effort }
+
+  func modelTitle(for id: String) -> String {
+    if id.isEmpty || id.lowercased() == "default" { return String(localized: "model.unavailable", bundle: .lody) }
+    return models.first { $0.id == id }?.title ?? id
+  }
+
   var modelTitle: String {
-    models.first { $0.id == modelId }?.title
-      ?? (modelId.isEmpty ? String(localized: "native.chat.composer.defaultModel", bundle: .lody) : modelId)
+    modelTitle(for: effectiveModelId)
   }
   var effortTitle: String {
-    let title = efforts.first { $0.id == effort }?.title ?? effort
+    effortTitle(for: effectiveEffort)
+  }
+
+  func effortTitle(for id: String) -> String {
+    let title = efforts.first { $0.id == id }?.title ?? id
     switch title.lowercased() {
-    case "": return String(localized: "native.chat.composer.defaultEffort", bundle: .lody)
+    case "", "default": return String(localized: "model.effortUnavailable", bundle: .lody)
     case "xhigh": return "Extra High"
     default: return title.replacingOccurrences(of: "_", with: " ").capitalized
     }
+  }
+
+  func inheritedTitle(_ value: String) -> String {
+    String.localizedStringWithFormat(String(localized: "model.followAgent", bundle: .lody), value)
   }
 
   var orderedEfforts: [ChatComposerOption] {
     let rank = [
       "off": 0, "none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6, "ultra": 7,
     ]
-    return efforts.enumerated().sorted { lhs, rhs in
+    return efforts.filter { $0.id.lowercased() != "default" }.enumerated().sorted { lhs, rhs in
       let left = rank[lhs.element.id.lowercased()]
       let right = rank[rhs.element.id.lowercased()]
       if let left, let right { return left < right }

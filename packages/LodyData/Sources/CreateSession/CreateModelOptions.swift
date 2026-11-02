@@ -37,7 +37,9 @@ public enum CreateModelOptions: Sendable {
   }
 
   public static func summary(_ capability: Capability, _ value: ModelChoice) -> String {
-    let model = capability.models.first { $0.id == value.modelId }
+    let modelId = CreateLogic.resolvedModelId(capability, modelId: value.modelId)
+    let model = capability.models.first { $0.id == modelId }
+    let effort = CreateLogic.resolvedEffort(capability, value)
     let mode = capability.modes.first { $0.id == value.modeId }
     let extras = CreateLogic.extraConfigOptions(capability).compactMap { option -> String? in
       switch value.configOptionValues?[option.id] {
@@ -46,8 +48,21 @@ public enum CreateModelOptions: Sendable {
       case nil: nil
       }
     }
-    return ([model?.name ?? text("model.default"), value.effort, mode?.name] + extras)
+    return ([model?.name ?? modelId ?? text("model.unavailable"), effort, mode?.name] + extras)
       .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+  }
+
+  public static func inheritedTitle(_ value: String) -> String {
+    String.localizedStringWithFormat(text("model.followAgent"), value)
+  }
+
+  public static func inheritedModelTitle(_ capability: Capability?) -> String {
+    let id = CreateLogic.resolvedModelId(capability)
+    return capability?.models.first { $0.id == id }?.name ?? id ?? text("model.unavailable")
+  }
+
+  public static func inheritedEffortTitle(_ capability: Capability?, modelId: String?) -> String {
+    CreateLogic.resolvedEffort(capability, ModelChoice(modelId: modelId)) ?? text("model.effortUnavailable")
   }
 
   public static func tabs(_ capability: Capability, _ value: ModelChoice) -> [(id: String, title: String)] {

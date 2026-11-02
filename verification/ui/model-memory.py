@@ -130,8 +130,19 @@ ui.capture('grok-native-restored')
 
 # A config-only effort ladder reaches the model page and native composer.
 pick_agent('claude')
+summary('Claude · low')
+tap_id('create-session-input')
+assert 'Claude' in ui.element('session-model')['AXLabel']
+assert 'Low' in ui.element('session-model')['AXLabel']
+tap_id('session-model')
+assert 'Claude' in ui.element('composer-model-menu')['AXLabel']
+assert 'Low' in ui.element('composer-model-menu')['AXLabel']
+ui.capture('claude-inherited-model-effort')
+ui.axe('tap', '-x', '20', '-y', '160', '--post-delay', '.5')
 tap_id('model')
+assert 'Claude' in ui.element('lody:default')['AXLabel']
 tab('effort')
+assert 'low' in ui.element('lody:default')['AXLabel']
 tap_id('high')
 tab('more')
 tap_id('fast:toggle')

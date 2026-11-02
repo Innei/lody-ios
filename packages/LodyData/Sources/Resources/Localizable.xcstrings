@@ -7253,19 +7253,19 @@
         }
       }
     },
-    "model.default": {
+    "model.unavailable": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "默认模型"
+            "value": "模型尚未获取"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Default model"
+            "value": "Model unavailable"
           }
         }
       }
@@ -8811,36 +8811,36 @@
         }
       }
     },
-    "native.chat.composer.defaultModel": {
+    "model.followAgent": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "默认模型"
+            "value": "跟随 Agent：%@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Default model"
+            "value": "Follow Agent: %@"
           }
         }
       }
     },
-    "native.chat.composer.defaultEffort": {
+    "model.effortUnavailable": {
       "extractionState": "manual",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "默认"
+            "value": "强度尚未获取"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Default"
+            "value": "Effort unavailable"
           }
         }
       }

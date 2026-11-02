@@ -61,8 +61,10 @@ final class ComposerOptionsController: UIViewController, UIPopoverPresentationCo
     fast.accessibilityValue = String(localized: String.LocalizationValue(enabled ? "native.chat.composer.fastOn" : "native.chat.composer.fastOff"), bundle: .lody)
     preferredContentSize = CGSize(width: 320, height: options.efforts.isEmpty ? 76 : 132)
     var configuration = UIButton.Configuration.plain()
-    configuration.baseForegroundColor = options.effort.lowercased() == "ultra" ? ChatEffortSlider.ultraColor : .lodyAccent
-    configuration.title = options.effortTitle + " ›"
+    configuration.baseForegroundColor = options.effectiveEffort.lowercased() == "ultra" ? ChatEffortSlider.ultraColor : .lodyAccent
+    let inheritsEffort = options.effort.isEmpty || options.effort.lowercased() == "default"
+    let effortTitle = inheritsEffort ? options.inheritedTitle(options.effortTitle) : options.effortTitle
+    configuration.title = effortTitle + " ›"
     configuration.subtitle = options.modelTitle
     configuration.titleAlignment = .center
     configuration.titleLineBreakMode = .byTruncatingTail
@@ -79,19 +81,19 @@ final class ComposerOptionsController: UIViewController, UIPopoverPresentationCo
       return attributes
     }
     model.configuration = configuration
-    model.accessibilityLabel = String.localizedStringWithFormat(String(localized: "native.chat.composer.modelPicker", bundle: .lody), String(describing: options.effortTitle), String(describing: options.modelTitle))
+    model.accessibilityLabel = String.localizedStringWithFormat(String(localized: "native.chat.composer.modelPicker", bundle: .lody), String(describing: effortTitle), String(describing: options.modelTitle))
     model.menu = UIMenu(children: [
-      UIAction(title: String(localized: "native.chat.composer.defaultModel", bundle: .lody), state: options.modelId.isEmpty ? .on : .off) { [weak self] _ in self?.onModel?("") },
-    ] + options.models.map { option in
+      UIAction(title: options.inheritedTitle(options.modelTitle(for: options.inheritedModelId ?? "")), state: options.modelId.isEmpty || options.modelId.lowercased() == "default" ? .on : .off) { [weak self] _ in self?.onModel?("") },
+    ] + options.models.filter { $0.id.lowercased() != "default" }.map { option in
       UIAction(title: option.title, state: option.id == options.modelId ? .on : .off) { [weak self] _ in self?.onModel?(option.id) }
     })
     let efforts = options.orderedEfforts
     slider.isHidden = efforts.isEmpty
     slider.steps = max(1, efforts.count)
     slider.value = Float(efforts.firstIndex { $0.id == options.effort }.map { $0 + 1 } ?? 0) / Float(max(1, efforts.count))
-    slider.accessibilityValue = options.effortTitle
+    slider.accessibilityValue = effortTitle
     slider.isFast = options.fast == true
-    slider.isUltra = options.effort.lowercased() == "ultra" && !efforts.isEmpty
+    slider.isUltra = options.effectiveEffort.lowercased() == "ultra" && !efforts.isEmpty
   }
 
   @objc private func toggleFast() {
