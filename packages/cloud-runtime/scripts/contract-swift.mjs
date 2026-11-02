@@ -48,9 +48,10 @@ export function emitSwift(contract) {
 
   function swiftType(schema, hint) {
     if (schema.$ref) return pascal(schema.$ref);
-    if (schema.anyOf) {
-      const values = schema.anyOf.filter((b) => !isNull(b));
-      if (values.length < schema.anyOf.length) {
+    if (schema.anyOf || schema.oneOf) {
+      const branches = schema.anyOf ?? schema.oneOf;
+      const values = branches.filter((b) => !isNull(b));
+      if (values.length < branches.length) {
         if (values.length !== 1)
           throw new Error(`${hint}: unsupported nullable union`);
         return `${swiftType(values[0], hint)}?`;
@@ -60,6 +61,12 @@ export function emitSwift(contract) {
         throw new Error(`${hint}: unions need a string const discriminator`);
       emitTagged(hint, values, tag);
       return hint;
+    }
+    if (Array.isArray(schema.type)) {
+      const values = schema.type.filter((type) => type !== 'null');
+      if (values.length === 1 && values.length < schema.type.length)
+        return `${swiftType({ ...schema, type: values[0] }, hint)}?`;
+      throw new Error(`${hint}: unsupported type union`);
     }
     if (schema.const !== undefined) {
       if (typeof schema.const !== 'string')
