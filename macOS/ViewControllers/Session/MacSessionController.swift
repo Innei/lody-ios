@@ -27,6 +27,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   var onInspect: (() -> Void)?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
+  var transcriptPreview: (@MainActor (CKMediaRef) async throws -> MacInspectionContent)? { source.previewFile }
   func focusTranscript() { transcript.focus() }
 
   var reading = MacReading.current() {
@@ -122,7 +123,9 @@ final class MacSessionController: NSViewController, MacSessionPane {
     onStreaming?(on)
     if on {
       source.start { [weak self] state in self?.render(state) }
+      inspectionModel?.resumeIfReady()
     } else {
+      inspectionModel?.suspend()
       source.stop()
     }
   }
@@ -147,6 +150,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     feed = state
     rebuild()
     onFeed?(state)
+    if streaming, state.status == "live" { inspectionModel?.resumeIfReady() }
     if let queuePage { Task { await queuePage.model.reload() } }
   }
 
@@ -178,7 +182,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private func inspectChanges(row: String) {
     guard let inspectionModel, let entryID = model.groups[row], let entry = parsed.entries?.first(where: { $0.id == entryID }) else { return }
     let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }.map { MacInspectionFile(path: $0.path, add: $0.add, del: $0.del, kind: $0.status) }
-    inspectionModel.showChanges(entry: .init(id: entry.id, title: entry.timestamp ?? MacInspectionUI.text("mac.inspection.thisTurn"), files: files))
+    inspectionModel.showChanges(entry: .init(id: entry.id, title: entry.timestamp ?? MacInspectionUI.text("mac.inspection.thisTurn"), files: files), path: model.changedPaths[row])
     onInspect?()
   }
 

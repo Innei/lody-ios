@@ -14,6 +14,7 @@ struct MacTranscriptSource {
   var queueService: MacQueueService?
   var userId = ""
   var reconnect: () -> Void = {}
+  var previewFile: (@MainActor (CKMediaRef) async throws -> MacInspectionContent)?
 
   static func live(sessionId: String, state: SessionListState, permission: PermissionService = .live) -> MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
@@ -39,7 +40,14 @@ struct MacTranscriptSource {
       },
       queueService: .live(sessionId: sessionId, workspace: state.workspaceId, user: state.userId),
       userId: state.userId,
-      reconnect: { feed.reconnect() }
+      reconnect: { feed.reconnect() },
+      previewFile: { ref in
+        guard let owner = DataRuntime.current, owner.userId == state.userId, owner.workspace == state.workspaceId, owner.sessionId == sessionId else { throw OutboxError.scopeExpired }
+        let content = try await MacMediaProvider(workspace: state.workspaceId, session: sessionId).previewFile(for: ref)
+        guard DataRuntime.current === owner, owner.userId == state.userId, owner.workspace == state.workspaceId, owner.sessionId == sessionId else { throw OutboxError.scopeExpired }
+        try Task.checkCancellation()
+        return content
+      }
     )
   }
 }

@@ -22,7 +22,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
 
   func bind(_ model: MacInspectionModel?) {
     (preview as? MacFilePreviewView)?.saveReading()
-    preview = nil; fileBrowser?.close()
+    discardPreview(); fileBrowser?.close()
     if isViewLoaded { body.subviews.forEach { $0.removeFromSuperview() } }
     self.model?.changed = nil
     self.model = model
@@ -43,6 +43,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
     tabs.pin = { [weak self] target in self?.state.pin(target); self?.changed() }
     tabs.close = { [weak self] target in
       guard let self else { return }
+      if let model { model.closeDocument(target); model.select(model.state.selection); return }
       state.close(target); changed(); onSelect?(state.selection)
     }
     let files = action("folder", "mac.inspection.files", "inspection-files") { [weak self] sender in self?.onFiles?(sender) }
@@ -67,11 +68,13 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
   init() { super.init(nibName: nil, bundle: nil) }
 
   func render() { guard isViewLoaded else { return }; tabs.render(state) }
-  private func changed() { model?.state = state; render(); onState?(state) }
+  private func changed() { model?.updateState(state); render(); onState?(state) }
 
   func renderModel() {
     guard let model else { return }
     (preview as? MacFilePreviewView)?.saveReading()
+    if model.isSuspended { discardPreview() }
+    if let pane = preview as? MacFilePreviewView, !model.state.tabs.contains(where: { $0.target == pane.target }) { discardPreview() }
     state = model.state; render(); onState?(state)
     onSelect = { [weak model] in model?.select($0) }
     switch state.selection {
@@ -90,7 +93,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
       changeBody.addArrangedSubview(toolbar)
       toolbar.widthAnchor.constraint(equalTo: changeBody.widthAnchor).isActive = true
       if model.files.isEmpty {
-        let text = model.changesError ?? MacInspectionUI.text(model.changesBusy ? "mac.inspection.loading" : "mac.inspection.noChanges")
+        let text = model.changesError ?? MacInspectionUI.text(model.changesBusy || model.isSuspended ? "mac.inspection.loading" : "mac.inspection.noChanges")
         let message = MacInspectionUI.message(text, retry: model.changesError == nil ? nil : { [weak model] in model?.refresh() })
         changeBody.addArrangedSubview(message)
       } else {
@@ -102,6 +105,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
         diff.render(model)
       }
       display(changeBody)
+      if let path = model.revealPath { diff.reveal(path); model.revealPath = nil }
       status.stringValue = model.turn?.title ?? model.base
     case .document(let target):
       renderDocument(target)
@@ -123,7 +127,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
     if let content = load?.value {
       let pane: MacFilePreviewView
       if let existing = preview as? MacFilePreviewView, existing.target == target, existing.content == content { pane = existing }
-      else { pane = MacFilePreviewView(target: target, content: content, model: model); preview = pane }
+      else { discardPreview(); pane = MacFilePreviewView(target: target, content: content, model: model); preview = pane }
       display(pane)
       status.stringValue = MacInspectionUI.text("mac.inspection.currentFile")
       if let error = load?.error { status.stringValue = MacInspectionUI.text("mac.inspection.stale") + " · " + error }
@@ -146,6 +150,7 @@ final class MacInspectionController: NSViewController, NSPopoverDelegate {
   }
 
   func findInFile() { (preview as? MacFilePreviewView)?.find() }
+  private func discardPreview() { (preview as? MacFilePreviewView)?.releasePreview(); preview = nil }
   func popoverDidClose(_ notification: Notification) { if let anchor = filesAnchor { anchor.window?.makeFirstResponder(anchor) } }
 
   func display(_ content: NSView) {

@@ -35,6 +35,18 @@ struct MacMediaProvider: CKMediaProvider {
     )
   }
 
+  func previewFile(for ref: CKMediaRef) async throws -> MacInspectionContent {
+    if let local = ref.context["local"].flatMap(URL.init(string:)), local.isFileURL { return .url(local) }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("lody-preview-" + UUID().uuidString, isDirectory: true)
+    do {
+      let url = try await SessionAttachments.download(workspace: workspace, session: storage(ref), fileId: ref.id,
+        fileName: ref.context["name"] ?? ref.id, sizeBytes: ref.context["size"].flatMap(Int.init), directory: directory,
+        image: ref.context["kind"] == "image")
+      try Task.checkCancellation()
+      return .owned(MacPreviewLease(url: url, directory: directory))
+    } catch { try? FileManager.default.removeItem(at: directory); throw error }
+  }
+
   private func storage(_ ref: CKMediaRef) -> String {
     ref.context["session"].flatMap { $0.isEmpty ? nil : $0 } ?? session
   }

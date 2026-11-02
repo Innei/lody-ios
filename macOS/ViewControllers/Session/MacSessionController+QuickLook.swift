@@ -7,7 +7,11 @@ extension MacSessionController: @preconcurrency QLPreviewPanelDataSource {
     guard let provider = transcriptMedia else { return }
     if let inspectionModel {
       let target = MacInspectionTarget.attachment(id: media.id, session: media.context["session"].flatMap { $0.isEmpty ? nil : $0 } ?? sessionId, name: media.context["name"] ?? media.id)
-      inspectionModel.showAttachment(target) { .url(try await provider.fileURL(for: media)) }
+      let read = transcriptPreview
+      inspectionModel.showAttachment(target) {
+        if let read { return try await read(media) }
+        return .url(try await provider.fileURL(for: media))
+      }
       onInspect?()
       return
     }

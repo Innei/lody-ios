@@ -1,11 +1,12 @@
 import AppKit
 import Quartz
 import LodyData
+import UniformTypeIdentifiers
 
 @MainActor
 final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource {
   let target: MacInspectionTarget
-  let content: MacInspectionContent
+  private(set) var content: MacInspectionContent?
   private weak var model: MacInspectionModel?
   private let scroll = NSScrollView()
   private let text = NSTextView()
@@ -14,6 +15,7 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
   private let zoom = NSPopUpButton()
   private var picture: NSImage?
   private var quick: QLPreviewView?
+  private var quickActivated = false
   private var temporary: URL?
   private var originalURL: URL?
   private var observer: NSObjectProtocol?
@@ -41,32 +43,41 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     switch content {
     case .stored(let handle):
       if let stored = ContentStore.shared.get(handle) {
-        if ["text", "markdown"].contains(stored.kind), let value = String(data: stored.data, encoding: .utf8), stored.data.count <= 1024 * 1024 { showText(value) }
+        let type = stored.mimeType.flatMap { UTType(mimeType: $0) } ?? UTType(filenameExtension: (stored.path as NSString).pathExtension)
+        if type?.conforms(to: .pdf) == true { showStoredPreview(stored) }
+        else if ["text", "markdown"].contains(stored.kind), let value = String(data: stored.data, encoding: .utf8), stored.data.count <= 1024 * 1024 { showText(value) }
         else if let picture = NSImage(data: stored.data) { showImage(picture) }
         else { showStoredPreview(stored) }
       } else { showMessage(MacInspectionUI.text("mac.inspection.evicted")) }
     case .url(let url):
-      originalURL = url
-      if let picture = NSImage(contentsOf: url), !["pdf", "eps"].contains(url.pathExtension.lowercased()) { showImage(picture) }
-      else if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 1024 * 1024,
-              let value = try? String(contentsOf: url, encoding: .utf8), !value.contains("\0") { showText(value) }
-      else { showQuickLook(url) }
+      showURL(url)
+    case .owned(let lease):
+      showURL(lease.url)
     }
     scroll.contentView.postsBoundsChangedNotifications = true
     observer = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated { self?.saveReading() }
     }
   }
+
+  private func showURL(_ url: URL) {
+      originalURL = url
+      let type = UTType(filenameExtension: url.pathExtension)
+      if type?.conforms(to: .pdf) == true || type?.conforms(to: .audiovisualContent) == true { showQuickLook(url) }
+      else if let picture = NSImage(contentsOf: url), !["eps"].contains(url.pathExtension.lowercased()) { showImage(picture) }
+      else if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 1024 * 1024,
+              let value = try? String(contentsOf: url, encoding: .utf8), !value.contains("\0") { showText(value) }
+      else { showQuickLook(url) }
+  }
   required init?(coder: NSCoder) { nil }
   isolated deinit {
     if let observer { NotificationCenter.default.removeObserver(observer) }
-    quick?.close()
-    if let temporary { try? FileManager.default.removeItem(at: temporary) }
+    releasePreview()
   }
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    if window != nil { restoreReading() }
+    if window != nil { quickActivated = quick != nil; restoreReading() }
   }
   override func layout() {
     super.layout()
@@ -153,6 +164,7 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
   private func showQuickLook(_ url: URL) {
     mode = "quick"
     if let preview = QLPreviewView(frame: .zero, style: .normal) {
+      preview.shouldCloseWithWindow = false
       quick = preview; preview.previewItem = url as NSURL
       preview.autostarts = false
       preview.translatesAutoresizingMaskIntoConstraints = false
@@ -181,6 +193,14 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     restoring = true; layoutSubtreeIfNeeded()
     scroll.contentView.scroll(to: .init(x: tab.scrollX, y: tab.scrollY)); scroll.reflectScrolledClipView(scroll.contentView)
     restoring = false
+  }
+  func releasePreview() {
+    if quickActivated { quick?.close() }
+    else { quick?.previewItem = nil }
+    quick = nil; quickActivated = false
+    if QLPreviewPanel.sharedPreviewPanelExists(), let panel = QLPreviewPanel.shared(), (panel.dataSource as AnyObject?) === self { panel.close() }
+    content = nil
+    if let temporary { try? FileManager.default.removeItem(at: temporary); self.temporary = nil }
   }
   override var acceptsFirstResponder: Bool { true }
   override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { MainActor.assumeIsolated { originalURL != nil } }

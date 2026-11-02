@@ -28,7 +28,16 @@ struct MacInspectionDirectory {
   var entries: [Entry]
   var truncated: Bool
 }
-enum MacInspectionContent: Equatable { case stored(String), url(URL) }
+enum MacInspectionContent: Equatable { case stored(String), url(URL), owned(MacPreviewLease) }
+
+/// Owns only a newly created download directory; local user files use .url instead.
+final class MacPreviewLease: Equatable {
+  let url: URL
+  private let directory: URL
+  init(url: URL, directory: URL) { self.url = url; self.directory = directory }
+  deinit { try? FileManager.default.removeItem(at: directory) }
+  static func == (lhs: MacPreviewLease, rhs: MacPreviewLease) -> Bool { lhs === rhs }
+}
 
 @MainActor
 struct MacInspectionService {
@@ -36,6 +45,7 @@ struct MacInspectionService {
   var changes: () async throws -> MacInspectionChanges
   var read: (MacInspectionTarget) async throws -> MacInspectionContent
   var directory: (String) async throws -> MacInspectionDirectory
+  var ready: () -> Bool = { true }
 
   static func live(session: String, workspace: String, user: String) -> Self {
     func runtime() throws -> DataRuntime {
@@ -82,16 +92,16 @@ struct MacInspectionService {
         return .stored(handle)
       case .attachment(let id, let source, let name):
         let ref = CKMediaRef(id: id, context: ["session": source, "name": name])
-        let url = try await MacMediaProvider(workspace: workspace, session: session).fileURL(for: ref)
+        let content = try await MacMediaProvider(workspace: workspace, session: session).previewFile(for: ref)
         try validate(owner)
-        return .url(url)
+        return content
       }
     }, directory: { path in
       let owner = try runtime()
       let result = try await owner.perform(RuntimeContract.Calls.ListDir.self, .init(workspaceId: workspace, sessionId: session, relativePath: path, userId: user))
       try validate(owner)
       return .init(entries: result.entries.map { .init(name: $0.name, directory: $0.type == .directory) }, truncated: result.truncated)
-    })
+    }, ready: { (try? runtime())?.health.ready == true })
   }
 
   private static func failure(_ message: String?, fallback: String) -> Error {

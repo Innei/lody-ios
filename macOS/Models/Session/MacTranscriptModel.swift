@@ -55,6 +55,7 @@ enum MacTranscriptItem: Hashable {
 struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
   var groups: [String: String] = [:]
+  var changedPaths: [String: String] = [:]
   var streaming = Set<String>()
   var permission: SessionPermission?
 
@@ -106,8 +107,9 @@ struct MacTranscriptModel {
         } else {
           items += process.map(Self.processItem)
         }
-      case "changes":
+      case "changes", "changesHeader":
         items.append(.changes(id: row.id, text: row.text))
+        if let path = row.fileDiff?.path, !path.isEmpty { changedPaths[row.id] = path }
       case "chat_failed":
         items.append(.notice(id: row.id, text: row.text))
       case "subagent_task":

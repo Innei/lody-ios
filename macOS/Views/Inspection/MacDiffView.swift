@@ -102,7 +102,10 @@ final class MacDiffView: NSView, NSTableViewDataSource, NSTableViewDelegate {
       }
     }
     var textWidth = bounds.width
-    for row in rows { if case .line(let line) = row { textWidth = max(textWidth, CGFloat(min(3000, line.text.utf16.count)) * 7 + 112) } }
+    for row in rows { if case .line(let line) = row {
+      let width = (line.text as NSString).size(withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 11.5, weight: .regular)]).width
+      textWidth = max(textWidth, width + 112)
+    } }
     column.width = max(320, textWidth)
     table.reloadData(); table.layoutSubtreeIfNeeded()
     scroll.contentView.scroll(to: .init(x: scroll.contentView.bounds.minX, y: model.changesScroll))
