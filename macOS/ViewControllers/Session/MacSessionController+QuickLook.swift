@@ -5,6 +5,12 @@ import Quartz
 extension MacSessionController: @preconcurrency QLPreviewPanelDataSource {
   func preview(_ media: CKMediaRef) {
     guard let provider = transcriptMedia else { return }
+    if let inspectionModel {
+      let target = MacInspectionTarget.attachment(id: media.id, session: media.context["session"].flatMap { $0.isEmpty ? nil : $0 } ?? sessionId, name: media.context["name"] ?? media.id)
+      inspectionModel.showAttachment(target) { .url(try await provider.fileURL(for: media)) }
+      onInspect?()
+      return
+    }
     Task { [weak self] in
       do {
         let url = try await provider.fileURL(for: media)

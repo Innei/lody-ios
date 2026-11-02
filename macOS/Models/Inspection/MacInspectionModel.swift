@@ -27,6 +27,8 @@ final class MacInspectionModel {
   var changesScroll = 0.0
   var showContext = Set<String>()
   var attachments: [MacInspectionTarget] = []
+  var directoryChanged: (() -> Void)?
+  private var attachmentReads: [MacInspectionTarget: @MainActor () async throws -> MacInspectionContent] = [:]
   private var savedRanges: [String: (Set<String>, Double)] = [:]
   private var tasks: [String: Task<Void, Never>] = [:]
   private var tokens: [String: UUID] = [:]
@@ -57,6 +59,12 @@ final class MacInspectionModel {
     state.show(target, pinned: pinned)
     loadDocument(target)
     changed?()
+  }
+
+  func showAttachment(_ target: MacInspectionTarget, read: @escaping @MainActor () async throws -> MacInspectionContent) {
+    attachmentReads[target] = read
+    if !attachments.contains(target) { attachments.append(target) }
+    show(target)
   }
 
   func select(_ selection: MacInspectionState.Selection) {
@@ -119,7 +127,8 @@ final class MacInspectionModel {
       }
     }
     documents[target, default: .init()].busy = true
-    perform("document:" + String(describing: target), operation: { [service] in try await service.read(target) }) { [weak self] result in
+    let read = attachmentReads[target] ?? { [service] in try await service.read(target) }
+    perform("document:" + String(describing: target), operation: read) { [weak self] result in
       guard let self, state.tabs.contains(where: { $0.target == target }) else { return }
       documents[target, default: .init()].busy = false
       switch result {
@@ -140,8 +149,10 @@ final class MacInspectionModel {
       case .success(let value): directories[path]?.value = value; directories[path]?.error = nil
       case .failure(let error): directories[path]?.error = error.localizedDescription
       }
+      directoryChanged?()
     }
     changed?()
+    directoryChanged?()
   }
 
   func suspend() {

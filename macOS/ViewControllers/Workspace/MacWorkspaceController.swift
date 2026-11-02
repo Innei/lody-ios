@@ -113,7 +113,11 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   @objc func selectPreviousSession(_ sender: Any?) { step(-1) }
 
   @objc func selectNextSession(_ sender: Any?) { step(1) }
-  @objc func findSessions(_ sender: Any?) { showPalette(mode: .search) }
+  @objc func findSessions(_ sender: Any?) {
+    if inspectionLayout.isOpen, let focus = view.window?.firstResponder as? NSView, focus.isDescendant(of: inspection.view),
+       case .document = pane?.inspectionModel?.state.selection { inspection.findInFile(); return }
+    showPalette(mode: .search)
+  }
 
   private func showPalette(mode: MacPaletteModel.Mode, draft: MacNewSessionController? = nil) {
     guard let window = view.window else { return }

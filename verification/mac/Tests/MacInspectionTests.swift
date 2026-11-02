@@ -1,9 +1,23 @@
 import AppKit
 import XCTest
+import LodyData
 @testable import LodyMacApp
 
 @MainActor
 final class MacInspectionTests: XCTestCase {
+  func testFilePreviewUsesReadonlyNativeTextInsteadOfTheLoadingPlaceholder() async throws {
+    let handle = ContentStore.shared.put(.init(data: Data("let answer = 42\n".utf8), kind: "text", path: "Answer.swift", session: "test", mimeType: nil))
+    let model = MacInspectionModel(service: .init(diff: { _, _ in .init(handle: "test", oldKind: "text", newKind: "text") }, changes: { .init(base: "main", files: []) }, read: { _ in .stored(handle) }, directory: { _ in .init(entries: [], truncated: false) }))
+    let controller = MacInspectionController()
+    controller.bind(model)
+    model.show(.file("Answer.swift"))
+    await model.waitForLoads()
+    func texts(_ view: NSView) -> [NSTextView] { (view as? NSTextView).map { [$0] } ?? view.subviews.flatMap(texts) }
+    let text = try XCTUnwrap(texts(controller.view).first)
+    XCTAssertEqual(text.string, "let answer = 42\n")
+    XCTAssertFalse(text.isEditable)
+    XCTAssertTrue(text.isSelectable)
+  }
   func testTurnScopeLoadsOnlyExpandedFilesAndPreservesEntryIdentity() async throws {
     var requests: [(String, String?)] = []
     let model = MacInspectionModel(service: .init(diff: { path, entry in

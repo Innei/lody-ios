@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class MacInspectionController: NSViewController {
+final class MacInspectionController: NSViewController, NSPopoverDelegate {
   var state = MacInspectionState()
   var onState: ((MacInspectionState) -> Void)?
   var onSelect: ((MacInspectionState.Selection) -> Void)?
@@ -17,14 +17,20 @@ final class MacInspectionController: NSViewController {
   private let range = NSPopUpButton()
   private let changeBody = NSStackView()
   private var preview: NSView?
+  private var fileBrowser: NSPopover?
+  private weak var filesAnchor: NSView?
 
   func bind(_ model: MacInspectionModel?) {
+    (preview as? MacFilePreviewView)?.saveReading()
+    preview = nil; fileBrowser?.close()
+    if isViewLoaded { body.subviews.forEach { $0.removeFromSuperview() } }
     self.model?.changed = nil
     self.model = model
     guard let model else { state = .init(); render(); return }
     model.changed = { [weak self] in self?.renderModel() }
     _ = view
     renderModel()
+    onFiles = { [weak self] sender in self?.showFiles(sender) }
   }
 
   override func loadView() {
@@ -65,6 +71,7 @@ final class MacInspectionController: NSViewController {
 
   func renderModel() {
     guard let model else { return }
+    (preview as? MacFilePreviewView)?.saveReading()
     state = model.state; render(); onState?(state)
     onSelect = { [weak model] in model?.select($0) }
     switch state.selection {
@@ -113,9 +120,33 @@ final class MacInspectionController: NSViewController {
     guard let model else { return }
     let load = model.documents[target]
     status.stringValue = target.path
-    let message = load?.error ?? MacInspectionUI.text("mac.inspection.loading")
-    display(MacInspectionUI.message(message, retry: { [weak model] in model?.loadDocument(target, force: true) }))
+    if let content = load?.value {
+      let pane: MacFilePreviewView
+      if let existing = preview as? MacFilePreviewView, existing.target == target, existing.content == content { pane = existing }
+      else { pane = MacFilePreviewView(target: target, content: content, model: model); preview = pane }
+      display(pane)
+      status.stringValue = MacInspectionUI.text("mac.inspection.currentFile")
+      if let error = load?.error { status.stringValue = MacInspectionUI.text("mac.inspection.stale") + " · " + error }
+    } else {
+      let message = load?.error ?? MacInspectionUI.text("mac.inspection.loading")
+      display(MacInspectionUI.message(message, retry: { [weak model] in model?.loadDocument(target, force: true) }))
+    }
   }
+
+  private func showFiles(_ sender: NSView) {
+    guard let model else { return }
+    if fileBrowser?.isShown == true { fileBrowser?.close(); return }
+    let popover = NSPopover(); popover.behavior = .transient
+    let browser = MacFileBrowserController(model: model)
+    browser.onPick = { [weak popover, weak model] target in popover?.close(); model?.show(target) }
+    popover.contentViewController = browser; popover.contentSize = NSSize(width: 350, height: 500)
+    popover.delegate = self; filesAnchor = sender
+    fileBrowser = popover
+    popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+  }
+
+  func findInFile() { (preview as? MacFilePreviewView)?.find() }
+  func popoverDidClose(_ notification: Notification) { if let anchor = filesAnchor { anchor.window?.makeFirstResponder(anchor) } }
 
   func display(_ content: NSView) {
     _ = view
