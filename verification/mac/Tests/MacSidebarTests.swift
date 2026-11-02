@@ -488,7 +488,7 @@ final class MacSidebarChromeTests: XCTestCase {
     let window = try XCTUnwrap(controller.window)
     defer { window.close() }
     window.layoutIfNeeded()
-    let navigation = try XCTUnwrap(window.toolbar?.items.compactMap { $0.view as? NSSegmentedControl }.first)
+    let navigation = try XCTUnwrap(window.contentView?.superview?.descendants(NSSegmentedControl.self).first { $0.accessibilityIdentifier() == "session-navigation" })
     let filter = try XCTUnwrap(window.contentView?.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-filter" })
     let menu = try XCTUnwrap(filter.menu)
     let project = try XCTUnwrap(menu.items.firstIndex { ($0.representedObject as? String) == "p-web" })

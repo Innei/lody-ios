@@ -11,6 +11,29 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   private var signedIn: Bool?
   private var onboarding: MacOnboardingChrome.Saved?
   private let navigation = NSSegmentedControl()
+  private lazy var navigationGroup: NSView = {
+    navigation.cell?.isBordered = false
+    navigation.cell?.isBezeled = false
+    let navigationGlass = NSGlassEffectView()
+    navigationGlass.cornerRadius = 18
+    navigationGlass.contentView = navigation
+    let title = String(localized: "mac.window.sidebar", bundle: .lodyMac)
+    let sidebar = NSButton(image: NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: nil) ?? NSImage(), target: self, action: #selector(toggleWorkspaceSidebar(_:)))
+    sidebar.bezelStyle = .glass; sidebar.borderShape = .circle
+    sidebar.toolTip = title; sidebar.setAccessibilityLabel(title)
+    sidebar.setAccessibilityIdentifier("window-sidebar-toggle")
+    let row = NSStackView(views: [navigationGlass, sidebar])
+    row.spacing = 12; row.alignment = .centerY
+    let container = NSGlassEffectContainerView()
+    container.spacing = 0; container.contentView = row
+    if #available(macOS 27, *) { navigationGlass.effectIsInteractive = true }
+    NSLayoutConstraint.activate([
+      navigationGlass.widthAnchor.constraint(equalToConstant: 74), navigationGlass.heightAnchor.constraint(equalToConstant: 36),
+      sidebar.widthAnchor.constraint(equalToConstant: 36), sidebar.heightAnchor.constraint(equalToConstant: 36),
+      container.widthAnchor.constraint(equalToConstant: 122), container.heightAnchor.constraint(equalToConstant: 36),
+    ])
+    return container
+  }()
   private var inspectionAccessory: NSTitlebarAccessoryViewController?
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
@@ -145,7 +168,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    [.lodySessionNavigation, .flexibleSpace, .toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .init("lody.inspection")]
+    [.lodySessionNavigation, .sidebarTrackingSeparator, .flexibleSpace, .init("lody.inspection")]
   }
 
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -162,7 +185,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
       return item
     case .lodySessionNavigation:
       item.label = String(localized: "mac.menu.session", bundle: .lodyMac)
-      item.view = navigation
+      item.view = navigationGroup
+      item.isBordered = false
       return item
     default: return nil
     }
@@ -197,6 +221,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   @objc private func navigateSession(_ sender: NSSegmentedControl) {
     if sender.selectedSegment == 0 { workspace?.selectPreviousSession(sender) }
     if sender.selectedSegment == 1 { workspace?.selectNextSession(sender) }
+  }
+
+  @objc private func toggleWorkspaceSidebar(_ sender: NSButton) {
+    workspace?.toggleSidebar(sender)
   }
 
   override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
