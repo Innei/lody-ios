@@ -28,6 +28,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   var onTitle: ((_ title: String, _ subtitle: String) -> Void)?
   var onBadge: ((MacTabBadge?) -> Void)?
   var onNewSession: (() -> Void)?
+  var onInspectionChrome: ((NSView, Bool, CGFloat) -> Void)?
 
   init(environment: MacEnvironment) {
     self.environment = environment
@@ -215,6 +216,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     let state = environment.sessions.read()
     let session = state.catalog.session(sessionId)
     let project = state.catalog.projects.first { $0.id == session?.projectId }?.name ?? ""
+    inspection.repositoryName = project
     onTitle?(session?.title ?? "Lody", project)
     onBadge?(MacTabBadge(session))
   }
@@ -262,6 +264,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     inspectionWidth?.constant = placement.panelWidth
     inspectionWidth?.isActive = inspectionLayout.isOpen && !inspectionLayout.expanded
     splitView.layoutSubtreeIfNeeded()
+    onInspectionChrome?(inspection.chrome, inspectionLayout.isOpen, min(inspection.view.bounds.width, max(0, placedWidth - 155)))
   }
 
   override func splitViewDidResizeSubviews(_ notification: Notification) {
@@ -270,6 +273,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
           NSApp.currentEvent?.type == .leftMouseDragged, view.window?.inLiveResize != true else { return }
     inspectionLayout.preferredWidth = inspection.view.bounds.width
     inspectionWidth?.constant = inspection.view.bounds.width
+    onInspectionChrome?(inspection.chrome, true, inspection.view.bounds.width)
   }
 }
 

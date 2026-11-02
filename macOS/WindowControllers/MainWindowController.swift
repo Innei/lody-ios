@@ -11,6 +11,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   private var signedIn: Bool?
   private var onboarding: MacOnboardingChrome.Saved?
   private let navigation = NSSegmentedControl()
+  private var inspectionAccessory: NSTitlebarAccessoryViewController?
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
     self.environment = environment
@@ -66,6 +67,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     signedIn = next
     if let workspace { MacTabCoordinator.shared.remove(workspace) }
     workspace = nil
+    if let accessory = inspectionAccessory { placeInspectionChrome(accessory.view, open: false, width: 0) }
     guard next else {
       window?.title = "Lody"
       window?.subtitle = ""
@@ -93,6 +95,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
       self?.window?.subtitle = subtitle
       self?.updateNavigation()
     }
+    workspace.onInspectionChrome = { [weak self] view, open, width in self?.placeInspectionChrome(view, open: open, width: width) }
     workspace.onBadge = { [weak self] badge in
       self?.window?.tab.accessoryView = badge.map(MacTabBadgeView.init)
     }
@@ -162,6 +165,27 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
       item.view = navigation
       return item
     default: return nil
+    }
+  }
+
+  private func placeInspectionChrome(_ view: NSView, open: Bool, width: CGFloat) {
+    guard let window else { return }
+    let identifier = NSToolbarItem.Identifier("lody.inspection")
+    if open {
+      if inspectionAccessory == nil {
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.layoutAttribute = .trailing
+        accessory.view = view
+        view.frame.size = NSSize(width: width, height: 52)
+        window.addTitlebarAccessoryViewController(accessory)
+        inspectionAccessory = accessory
+        if let index = window.toolbar?.items.firstIndex(where: { $0.itemIdentifier == identifier }) { window.toolbar?.removeItem(at: index) }
+      }
+      if abs(view.frame.width - width) > 0.5 { view.setFrameSize(NSSize(width: width, height: view.frame.height)) }
+    } else if let accessory = inspectionAccessory {
+      if let index = window.titlebarAccessoryViewControllers.firstIndex(of: accessory) { window.removeTitlebarAccessoryViewController(at: index) }
+      inspectionAccessory = nil
+      if let toolbar = window.toolbar, !toolbar.items.contains(where: { $0.itemIdentifier == identifier }) { toolbar.insertItem(withItemIdentifier: identifier, at: toolbar.items.count) }
     }
   }
 

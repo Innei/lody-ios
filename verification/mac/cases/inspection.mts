@@ -21,20 +21,20 @@ export async function inspection(session: Session) {
   for (const appearance of ['light', 'dark'] as const) {
     await openScene(session, 'inspection', appearance);
     await waitForText(session, '2026-11-02 10:32');
-    await choose(session, 'This reply', 'All workspace changes');
+    await choose(session, 'This reply', 'All changes');
     await waitForText(session, 'feature/native-panel');
     await capture(session, `inspection-diff-${appearance}`);
     await clickText(
       session,
-      'inspection-preview-macOS/Views/MacComposerView.swift',
+      'inspection-preview-macOS/Views/Composer/MacComposerView.swift',
     );
     await waitForDump(session, (d) => visible(d, 'inspection-text'));
     await capture(session, `inspection-code-${appearance}`);
     await clickText(session, 'inspection-wrap');
     await clickText(session, 'inspection-files');
     await waitForDump(session, (d) => visible(d, 'inspection-file-filter'));
-    await typeInto(session, 'inspection-file-filter', 'preview.png');
-    await clickText(session, 'preview.png');
+    await typeInto(session, 'inspection-file-filter', 'changes-reference.png');
+    await clickText(session, 'changes-reference.png');
     await waitForDump(session, (d) => visible(d, 'inspection-image'));
     await choose(session, 'Fit', '200%');
     await capture(session, `inspection-image-${appearance}`);

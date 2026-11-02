@@ -17,7 +17,12 @@ enum MacViewDump {
         entry["selectedTab"] = window.tabGroup?.selectedWindow?.title ?? ""
         entry["badges"] = tabs.map { $0.tab.accessoryView?.accessibilityIdentifier() ?? "" }
       }
-      if let content = window.contentView { entry["root"] = node(content, visit: MacAccessibilityTree.Visit()) }
+      if let content = window.contentView {
+        var root = node(content, visit: MacAccessibilityTree.Visit())
+        var children = root["children"] as? [[String: Any]] ?? []
+        if window.styleMask.contains(.titled) { children += window.titlebarAccessoryViewControllers.map { node($0.view, visit: MacAccessibilityTree.Visit()) } }
+        root["children"] = children; entry["root"] = root
+      }
       return entry
     }
     let data = try JSONSerialization.data(withJSONObject: ["windows": windows, "accent": MacAccent.current().rawValue, "action": MacVerifyActions.last], options: [.prettyPrinted, .sortedKeys])

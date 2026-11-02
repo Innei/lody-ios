@@ -26,6 +26,7 @@ final class MacInspectionModel {
   var expandedFolders = Set<String>()
   var changesScroll = 0.0
   var showContext = Set<String>()
+  var showAllHunks = Set<String>()
   var attachments: [MacInspectionTarget] = []
   var directoryChanged: (() -> Void)?
   private var attachmentReads: [MacInspectionTarget: @MainActor () async throws -> MacInspectionContent] = [:]
@@ -67,7 +68,7 @@ final class MacInspectionModel {
     state.selection = .changes; state.isOpen = true
     let saved = savedRanges[rangeKey]
     expanded = saved?.0 ?? []; changesScroll = saved?.1 ?? 0
-    diffs = [:]; showContext = []; changesError = nil
+    diffs = [:]; showContext = []; showAllHunks = []; changesError = nil
     files = []; base = ""; revealPath = path
     if let entry {
       files = entry.files

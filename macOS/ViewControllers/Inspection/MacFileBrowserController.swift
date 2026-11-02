@@ -15,35 +15,42 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
   private let search = NSSearchField()
   private let outline = NSOutlineView()
   private let feedback = NSTextField(wrappingLabelWithString: "")
+  private var clearButton: NSButton?
   private let retry = MacInspectionUI.button(MacInspectionUI.text("mac.inspection.retry"), "inspection-directory-retry") {}
   private var nodes: [String: Node] = [:]
   private var filtered: [Node] = []
+  private var rootSnapshot: [Node] = []
+  private var childSnapshot: [String: [Node]] = [:]
   var onPick: ((MacInspectionTarget) -> Void)?
 
   init(model: MacInspectionModel) {
     self.model = model; super.init(nibName: nil, bundle: nil)
-    preferredContentSize = NSSize(width: 350, height: 500)
+    preferredContentSize = NSSize(width: 350, height: 440)
   }
   required init?(coder: NSCoder) { nil }
 
   override func loadView() {
-    view = NSView(frame: NSRect(x: 0, y: 0, width: 350, height: 500))
+    view = NSView(frame: NSRect(x: 0, y: 0, width: 350, height: 440))
+    let title = MacInspectionUI.label(MacInspectionUI.text("mac.inspection.openFile"), size: 12, color: .labelColor)
+    search.font = .systemFont(ofSize: 12)
     search.placeholderString = MacInspectionUI.text("mac.inspection.filterFiles")
     search.delegate = self; search.setAccessibilityIdentifier("inspection-file-filter")
     let column = NSTableColumn(identifier: .init("file")); column.title = MacInspectionUI.text("mac.inspection.filesTitle")
     outline.addTableColumn(column); outline.outlineTableColumn = column; outline.headerView = nil
-    outline.rowHeight = 30; outline.indentationPerLevel = 12
+    outline.style = .plain; outline.rowHeight = 30; outline.indentationPerLevel = 12
     outline.delegate = self; outline.dataSource = self
     outline.setAccessibilityIdentifier("inspection-file-tree")
     outline.target = self; outline.action = #selector(pick)
-    let scroll = NSScrollView(); scroll.documentView = outline; scroll.hasVerticalScroller = true
+    let scroll = NSScrollView(); scroll.documentView = outline; scroll.hasVerticalScroller = true; scroll.scrollerStyle = .overlay; scroll.autohidesScrollers = true; scroll.drawsBackground = false
     feedback.font = .systemFont(ofSize: 11); feedback.textColor = .secondaryLabelColor
     let clear = MacInspectionUI.button(MacInspectionUI.text("mac.inspection.clear"), "inspection-file-clear") { [weak self] in self?.search.stringValue = ""; self?.reload() }
+    clear.isBordered = false; clearButton = clear
     retry.target = self; retry.action = #selector(retryDirectory)
     let footer = NSStackView(views: [feedback, retry, clear]); footer.spacing = 6
-    for child in [search, scroll, footer] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
+    for child in [title, search, scroll, footer] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
     NSLayoutConstraint.activate([
-      search.topAnchor.constraint(equalTo: view.topAnchor, constant: 12), search.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12), search.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+      title.topAnchor.constraint(equalTo: view.topAnchor, constant: 12), title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+      search.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10), search.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12), search.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
       scroll.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 8), scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
       scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6), footer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12), footer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12), footer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
     ])
@@ -52,7 +59,8 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
   }
   override func viewDidAppear() { super.viewDidAppear(); view.window?.makeFirstResponder(search) }
 
-  private func children(_ path: String) -> [Node] {
+  private func children(_ path: String) -> [Node] { childSnapshot[path] ?? [] }
+  private func makeChildren(_ path: String) -> [Node] {
     (model.directories[path]?.value?.entries ?? []).filter { !$0.name.isEmpty && $0.name != "." && $0.name != ".." && !$0.name.contains("/") && !$0.name.contains("\\") }.sorted {
       if $0.directory != $1.directory { return $0.directory }
       return $0.name.localizedStandardCompare($1.name) == .orderedAscending
@@ -64,7 +72,8 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
       nodes[full] = node; return node
     }
   }
-  private func roots() -> [Node] {
+  private func roots() -> [Node] { rootSnapshot }
+  private func makeRoots() -> [Node] {
     if !search.stringValue.isEmpty { return filtered }
     var result = children("")
     for target in model.attachments {
@@ -77,9 +86,11 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
   private func reload() {
     guard isViewLoaded else { return }
     // Materialize only responses already returned; this never recurses over the network.
-    for path in model.directories.keys { _ = children(path) }
+    for path in model.directories.keys { childSnapshot[path] = makeChildren(path) }
     let query = search.stringValue
+    clearButton?.isHidden = query.isEmpty
     filtered = nodes.values.filter { !$0.directory && $0.path.localizedCaseInsensitiveContains(query) }.sorted { $0.path < $1.path }
+    rootSnapshot = makeRoots()
     outline.reloadData()
     if query.isEmpty {
       for path in model.expandedFolders { if let node = nodes[path] { outline.expandItem(node) } }
@@ -109,7 +120,7 @@ final class MacFileBrowserController: NSViewController, NSOutlineViewDataSource,
   func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
     guard let node = item as? Node else { return nil }
     let cell = NSTableCellView()
-    let text = NSTextField(labelWithString: node.name); text.lineBreakMode = .byTruncatingMiddle
+    let text = NSTextField(labelWithString: node.name); text.lineBreakMode = .byTruncatingMiddle; text.font = .systemFont(ofSize: 12)
     let image = NSImageView(image: NSImage(systemSymbolName: node.directory ? "folder" : "doc.text", accessibilityDescription: nil) ?? NSImage())
     image.contentTintColor = .secondaryLabelColor
     let row = NSStackView(views: [image, text]); row.spacing = 6; row.translatesAutoresizingMaskIntoConstraints = false

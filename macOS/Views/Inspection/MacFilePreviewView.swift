@@ -12,10 +12,14 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
   private let text = NSTextView()
   private let toolbar = NSStackView()
   private let image = NSImageView()
+  private let imageStage = MacInspectionSurface()
+  var onFiles: ((NSView) -> Void)?
+  private(set) var contentDescription = ""
+  private var refreshButton: NSButton?
+  private var findButton: NSButton?
   private let zoom = NSPopUpButton()
   private var picture: NSImage?
   private var quick: QLPreviewView?
-  private var quickActivated = false
   private var temporary: URL?
   private var originalURL: URL?
   private var observer: NSObjectProtocol?
@@ -26,20 +30,29 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     self.target = target; self.content = content; self.model = model
     super.init(frame: .zero)
     setAccessibilityIdentifier("inspection-preview")
-    let path = NSTextField(labelWithString: target.path)
-    path.font = .systemFont(ofSize: 12, weight: .medium); path.lineBreakMode = .byTruncatingMiddle; path.toolTip = target.path
+    let path = MacInspectionUI.label(target.path, color: .labelColor)
+    path.attributedStringValue = MacInspectionUI.path(target.path); path.toolTip = target.path
     path.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    toolbar.setViews([path], in: .leading)
-    toolbar.spacing = 6; toolbar.edgeInsets = .init(top: 7, left: 10, bottom: 7, right: 10)
-    let refresh = MacInspectionUI.button(MacInspectionUI.text("mac.inspection.refresh"), "inspection-refresh") { [weak model] in model?.refresh() }
-    toolbar.addArrangedSubview(refresh)
+    let subtitle = MacInspectionUI.label(MacInspectionUI.text("mac.inspection.currentFile"), size: 10)
+    let title = NSStackView(views: [path, subtitle]); title.orientation = .vertical; title.alignment = .leading; title.spacing = 1
+    title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    let spacer = NSView(); spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+    toolbar.setViews([MacInspectionUI.fileIcon(target.path), title, spacer], in: .leading)
+    toolbar.spacing = 6; toolbar.edgeInsets = .init(top: 0, left: 13, bottom: 0, right: 8)
+    let refresh = MacInspectionUI.icon("arrow.clockwise", title: MacInspectionUI.text("mac.inspection.refresh"), id: "inspection-refresh") { [weak model] _ in model?.refresh() }
+    refreshButton = refresh; toolbar.addArrangedSubview(refresh)
+    toolbar.addArrangedSubview(MacInspectionUI.icon("folder", title: MacInspectionUI.text("mac.inspection.files"), id: "inspection-files") { [weak self] sender in self?.onFiles?(sender) })
     for child in [toolbar, scroll] { child.translatesAutoresizingMaskIntoConstraints = false; addSubview(child) }
     NSLayoutConstraint.activate([
-      toolbar.topAnchor.constraint(equalTo: topAnchor), toolbar.leadingAnchor.constraint(equalTo: leadingAnchor), toolbar.trailingAnchor.constraint(equalTo: trailingAnchor),
+      toolbar.heightAnchor.constraint(equalToConstant: 46), toolbar.topAnchor.constraint(equalTo: topAnchor), toolbar.leadingAnchor.constraint(equalTo: leadingAnchor), toolbar.trailingAnchor.constraint(equalTo: trailingAnchor),
       scroll.topAnchor.constraint(equalTo: toolbar.bottomAnchor), scroll.leadingAnchor.constraint(equalTo: leadingAnchor), scroll.trailingAnchor.constraint(equalTo: trailingAnchor), scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
     scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true; scroll.autohidesScrollers = true
-    scroll.drawsBackground = false
+    scroll.drawsBackground = false; scroll.scrollerStyle = .overlay
+    scroll.automaticallyAdjustsContentInsets = false; scroll.contentInsets = .init()
+    let rule = NSBox(); rule.boxType = .separator; rule.translatesAutoresizingMaskIntoConstraints = false; addSubview(rule)
+    NSLayoutConstraint.activate([rule.leadingAnchor.constraint(equalTo: leadingAnchor), rule.trailingAnchor.constraint(equalTo: trailingAnchor), rule.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor)])
     switch content {
     case .stored(let handle):
       if let stored = ContentStore.shared.get(handle) {
@@ -77,16 +90,19 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    if window != nil { quickActivated = quick != nil; restoreReading() }
+    if window != nil { restoreReading() }
   }
   override func layout() {
     super.layout()
-    if mode == "image", zoom.indexOfSelectedItem == 0 { layoutImage() }
+    refreshButton?.isHidden = bounds.width < 480
+    findButton?.isHidden = bounds.width < 380
+    if mode == "image" { layoutImage() }
     if mode == "text", let tab = model?.state.tabs.first(where: { $0.target == target }), tab.wrap { setWrap(true) }
   }
 
   private func showText(_ value: String) {
     mode = "text"
+    contentDescription = String.localizedStringWithFormat(MacInspectionUI.text("mac.inspection.lineCount"), value.components(separatedBy: "\n").count)
     text.isEditable = false; text.isSelectable = true; text.isRichText = false
     text.isAutomaticLinkDetectionEnabled = false
     text.font = .monospacedSystemFont(ofSize: 11.5, weight: .regular)
@@ -94,18 +110,23 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     text.textContainerInset = .init(width: 10, height: 12)
     text.usesFindBar = true; text.isIncrementalSearchingEnabled = true
     text.setAccessibilityIdentifier("inspection-text")
-    text.textStorage?.setAttributedString(MacInspectionSyntax.code(value))
+    let code = NSMutableAttributedString(attributedString: MacInspectionSyntax.code(value))
+    let paragraph = NSMutableParagraphStyle(); paragraph.minimumLineHeight = 22; paragraph.maximumLineHeight = 22
+    code.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: code.length))
+    text.textStorage?.setAttributedString(code)
     scroll.documentView = text
-    let wrap = MacInspectionUI.button(MacInspectionUI.text("mac.inspection.wrap"), "inspection-wrap") { [weak self] in
+    let wrap = MacInspectionUI.icon("arrow.turn.down.left", title: MacInspectionUI.text("mac.inspection.wrap"), id: "inspection-wrap") { [weak self] sender in
       guard let self else { return }
       let old = self.model?.state.tabs.first(where: { $0.target == self.target })?.wrap ?? false
-      self.model?.state.updateReading(self.target, x: self.scroll.contentView.bounds.minX, y: self.scroll.contentView.bounds.minY, wrap: !old)
+      self.model?.state.updateReading(self.target, x: self.readingOrigin.x, y: self.readingOrigin.y, wrap: !old)
+      (sender as? NSButton)?.state = old ? .off : .on
       self.setWrap(!old)
     }
     toolbar.addArrangedSubview(wrap)
-    toolbar.addArrangedSubview(MacInspectionUI.button(MacInspectionUI.text("mac.inspection.find"), "inspection-find") { [weak self] in self?.find() })
+    let find = MacInspectionUI.icon("magnifyingglass", title: MacInspectionUI.text("mac.inspection.find"), id: "inspection-find") { [weak self] _ in self?.find() }
+    findButton = find; toolbar.addArrangedSubview(find)
     let ruler = MacInspectionLineRuler(text: text)
-    scroll.verticalRulerView = ruler; scroll.hasVerticalRuler = true; scroll.rulersVisible = true
+    scroll.verticalRulerView = ruler; scroll.hasVerticalRuler = true; scroll.rulersVisible = true; scroll.tile()
     setWrap(model?.state.tabs.first(where: { $0.target == target })?.wrap ?? false)
   }
 
@@ -126,17 +147,22 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
 
   func find() {
     guard mode == "text" else { return }
+    saveReading()
     window?.makeFirstResponder(text)
     let sender = NSMenuItem(); sender.tag = Int(NSFindPanelAction.showFindPanel.rawValue)
     text.performFindPanelAction(sender)
+    scroll.tile(); restoreReading()
   }
 
   private func showImage(_ picture: NSImage) {
     mode = "image"; self.picture = picture
     image.image = picture; image.imageScaling = .scaleAxesIndependently
     image.setAccessibilityIdentifier("inspection-image")
-    scroll.documentView = image
+    contentDescription = "\(target.name.components(separatedBy: ".").last?.uppercased() ?? "") · \(Int(picture.size.width)) × \(Int(picture.size.height))"
+    imageStage.fill = MacInspectionUI.insetColor; imageStage.addSubview(image)
+    scroll.documentView = imageStage
     zoom.addItems(withTitles: [MacInspectionUI.text("mac.inspection.fit"), "100%", "200%"])
+    zoom.isBordered = false; zoom.font = .systemFont(ofSize: 11); zoom.widthAnchor.constraint(equalToConstant: 65).isActive = true
     zoom.target = self; zoom.action = #selector(changeZoom)
     zoom.setAccessibilityLabel(MacInspectionUI.text("mac.inspection.imageZoom")); zoom.setAccessibilityIdentifier("inspection-image-zoom")
     toolbar.addArrangedSubview(zoom)
@@ -149,7 +175,10 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     var scale = 1.0
     if zoom.indexOfSelectedItem == 0 { scale = min(1, max(1, scroll.contentSize.width - 32) / max(1, size.width), max(1, scroll.contentSize.height - 32) / max(1, size.height)) }
     if zoom.indexOfSelectedItem == 2 { scale = 2 }
-    image.frame = .init(x: 0, y: 0, width: max(1, size.width * scale), height: max(1, size.height * scale))
+    let width = max(1, size.width * scale), height = max(1, size.height * scale)
+    let stageWidth = max(scroll.contentSize.width, width + 44), stageHeight = max(scroll.contentSize.height, height + 44)
+    imageStage.frame = .init(x: 0, y: 0, width: stageWidth, height: stageHeight)
+    image.frame = .init(x: zoom.indexOfSelectedItem == 0 ? (stageWidth - width) / 2 : 22, y: 22, width: width, height: height)
   }
 
   private func showStoredPreview(_ stored: StoredContent) {
@@ -162,7 +191,7 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
     } catch { showMessage(error.localizedDescription) }
   }
   private func showQuickLook(_ url: URL) {
-    mode = "quick"
+    mode = "quick"; contentDescription = target.name
     if let preview = QLPreviewView(frame: .zero, style: .normal) {
       preview.shouldCloseWithWindow = false
       quick = preview; preview.previewItem = url as NSURL
@@ -173,7 +202,7 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
       NSLayoutConstraint.activate([preview.topAnchor.constraint(equalTo: toolbar.bottomAnchor), preview.leadingAnchor.constraint(equalTo: leadingAnchor), preview.trailingAnchor.constraint(equalTo: trailingAnchor), preview.bottomAnchor.constraint(equalTo: bottomAnchor)])
     }
     toolbar.addArrangedSubview(MacInspectionUI.button(MacInspectionUI.text("mac.inspection.quickLook"), "inspection-quicklook") { [weak self] in
-      guard let self, let url = self.originalURL else { return }
+      guard let self, self.originalURL != nil else { return }
       guard let panel = QLPreviewPanel.shared() else { return }
       self.window?.makeFirstResponder(self)
       panel.updateController(); panel.reloadData(); panel.makeKeyAndOrderFront(nil)
@@ -185,19 +214,21 @@ final class MacFilePreviewView: NSView, @preconcurrency QLPreviewPanelDataSource
   func saveReading() {
     guard !restoring, let model else { return }
     let wrap = model.state.tabs.first(where: { $0.target == target })?.wrap ?? false
-    model.state.updateReading(target, x: scroll.contentView.bounds.minX, y: scroll.contentView.bounds.minY, wrap: wrap)
+    model.state.updateReading(target, x: readingOrigin.x, y: readingOrigin.y, wrap: wrap)
     scroll.verticalRulerView?.needsDisplay = true
+  }
+  private var readingOrigin: NSPoint {
+    let clip = scroll.contentView
+    return NSPoint(x: clip.bounds.minX + clip.contentInsets.left, y: clip.bounds.minY + clip.contentInsets.top)
   }
   private func restoreReading() {
     guard let tab = model?.state.tabs.first(where: { $0.target == target }) else { return }
     restoring = true; layoutSubtreeIfNeeded()
-    scroll.contentView.scroll(to: .init(x: tab.scrollX, y: tab.scrollY)); scroll.reflectScrolledClipView(scroll.contentView)
+    scroll.contentView.scroll(to: .init(x: tab.scrollX - scroll.contentView.contentInsets.left, y: tab.scrollY - scroll.contentView.contentInsets.top)); scroll.reflectScrolledClipView(scroll.contentView)
     restoring = false
   }
   func releasePreview() {
-    if quickActivated { quick?.close() }
-    else { quick?.previewItem = nil }
-    quick = nil; quickActivated = false
+    quick?.close(); quick = nil
     if QLPreviewPanel.sharedPreviewPanelExists(), let panel = QLPreviewPanel.shared(), (panel.dataSource as AnyObject?) === self { panel.close() }
     content = nil
     if let temporary { try? FileManager.default.removeItem(at: temporary); self.temporary = nil }
@@ -230,7 +261,7 @@ private final class MacInspectionLineRuler: NSRulerView {
     NSGraphicsContext.saveGraphicsState()
     defer { NSGraphicsContext.restoreGraphicsState() }
     NSBezierPath(rect: bounds).addClip()
-    NSColor.windowBackgroundColor.setFill(); bounds.fill()
+    NSColor.textBackgroundColor.setFill(); bounds.fill()
     var visible = text.visibleRect; visible.origin.y -= text.textContainerOrigin.y
     let range = layout.glyphRange(forBoundingRect: visible, in: container)
     layout.enumerateLineFragments(forGlyphRange: range) { line, _, _, glyphs, _ in
@@ -238,8 +269,10 @@ private final class MacInspectionLineRuler: NSRulerView {
       var lower = 0, upper = self.starts.count
       while lower < upper { let mid = (lower + upper) / 2; if self.starts[mid] <= character { lower = mid + 1 } else { upper = mid } }
       let value = String(lower) as NSString
-      let point = self.convert(NSPoint(x: 0, y: line.minY + text.textContainerOrigin.y), from: text)
-      value.draw(at: .init(x: 6, y: point.y), withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .regular), .foregroundColor: NSColor.secondaryLabelColor])
+      let font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .regular)
+      let baseline = layout.location(forGlyphAt: glyphs.location).y
+      let point = self.convert(NSPoint(x: 0, y: line.minY + baseline - font.ascender + text.textContainerOrigin.y), from: text)
+      value.draw(at: .init(x: 32 - value.size(withAttributes: [.font: font]).width, y: point.y), withAttributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
     }
   }
 }

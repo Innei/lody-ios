@@ -9,6 +9,8 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   private let table = CKTranscriptTable()
   private var scroll: NSScrollView { table.scrollView }
   private var items: [String: MacTranscriptItem] = [:]
+  private var changeBlocks: [String: [MacTranscriptItem]] = [:]
+  private var changedFiles: [String: ChatFileDiff] = [:]
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
   var onChanges: ((String) -> Void)?
@@ -79,9 +81,15 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
   func render(_ model: MacTranscriptModel) {
     let arrived = model.items.filter { ["user", "attachments"].contains($0.kind) && items[$0.id] == nil }.map(\.id)
     items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    let rows = model.items.map { item in
-      CKTranscriptRow(
-        id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue,
+    changedFiles = model.changedFiles
+    let blocks = Dictionary(grouping: model.items.filter { $0.kind == "changes" }) { model.groups[$0.id] ?? $0.id }
+    changeBlocks = Dictionary(uniqueKeysWithValues: blocks.values.compactMap { block in block.first.map { ($0.id, block) } })
+    let hidden = Set(changeBlocks.values.flatMap { $0.dropFirst().map(\.id) })
+    let rows = model.items.filter { !hidden.contains($0.id) }.map { item in
+      var version = Hasher(); version.combine(item)
+      for file in changeBlocks[item.id] ?? [] { version.combine(file); version.combine(changedFiles[file.id]?.add); version.combine(changedFiles[file.id]?.del) }
+      return CKTranscriptRow(
+        id: item.id, kind: item.kind, neighbourKey: item.kind, version: version.finalize(),
         group: model.groups[item.id] ?? item.id, deferrable: model.streaming.contains(item.id)
       )
     }
@@ -117,12 +125,8 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     case .plan(_, let markdown): return MacPlanView(markdown: markdown, size: reading.textSize)
     case .activity(_, let symbol, let text, let attention, let running):
       return MacActivityLine(symbol: symbol, text: text, attention: attention, running: running)
-    case .changes(let id, let text):
-      let button = MacActionButton(title: text) { [weak self] in self?.onChanges?(id) }
-      button.image = NSImage(systemSymbolName: "plus.forwardslash.minus", accessibilityDescription: nil)
-      button.imagePosition = .imageLeading; button.isBordered = false; button.alignment = .left
-      button.setAccessibilityIdentifier("transcript-changes")
-      return button
+    case .changes(let id, _):
+      return MacTranscriptChangesBlock(items: changeBlocks[id] ?? [item], files: changedFiles) { [weak self] id in self?.onChanges?(id) }
     case .notice(_, let text):
       let label = NSTextField(wrappingLabelWithString: text)
       label.textColor = .systemRed
@@ -143,6 +147,41 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
       return view
     }
   }
+}
+
+@MainActor
+private final class MacTranscriptChangesBlock: MacInspectionSurface {
+  init(items: [MacTranscriptItem], files: [String: ChatFileDiff], open: @escaping (String) -> Void) {
+    super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 36 * min(items.count, 4) + 7))
+    fill = MacInspectionUI.insetColor; radius = 10
+    let column = NSStackView(); column.orientation = .vertical; column.alignment = .leading; column.spacing = 0
+    column.translatesAutoresizingMaskIntoConstraints = false; addSubview(column)
+    NSLayoutConstraint.activate([column.leadingAnchor.constraint(equalTo: leadingAnchor), column.trailingAnchor.constraint(equalTo: trailingAnchor), column.topAnchor.constraint(equalTo: topAnchor), column.bottomAnchor.constraint(equalTo: bottomAnchor)])
+    let visible = items.count > 4 ? Array(items.prefix(4)) : items
+    for (index, item) in visible.enumerated() {
+      guard case .changes(let id, let text) = item else { continue }
+      let file = files[id]
+      let summary = file?.path.isEmpty == true || file == nil
+      let title = summary ? text : (text as NSString).lastPathComponent
+      let button = MacActionButton(title: title) { open(id) }
+      button.isBordered = false; button.alignment = .left; button.lineBreakMode = .byTruncatingMiddle
+      button.font = .systemFont(ofSize: summary ? 12 : 11, weight: summary ? .medium : .regular)
+      button.contentTintColor = summary ? .labelColor : .secondaryLabelColor
+      button.setContentHuggingPriority(.defaultLow, for: .horizontal); button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+      button.toolTip = text; button.setAccessibilityIdentifier("transcript-changes"); button.setAccessibilityLabel(text)
+      let glyph = NSImageView(image: NSImage(systemSymbolName: summary ? "arrow.triangle.branch" : "doc.text", accessibilityDescription: nil) ?? NSImage())
+      glyph.contentTintColor = .secondaryLabelColor; glyph.symbolConfiguration = .init(pointSize: 12, weight: .regular); glyph.widthAnchor.constraint(equalToConstant: 16).isActive = true
+      let row = NSStackView(views: [glyph, button]); row.spacing = 8; row.distribution = .fill
+      row.edgeInsets = .init(top: 0, left: 12, bottom: 0, right: 12)
+      if let add = file?.add { row.addArrangedSubview(MacInspectionUI.label("+\(add)", size: 11, color: .systemGreen)) }
+      if let del = file?.del { row.addArrangedSubview(MacInspectionUI.label("−\(del)", size: 11, color: .systemRed)) }
+      if summary { row.addArrangedSubview(MacInspectionUI.icon("sidebar.right", title: MacInspectionUI.text("mac.inspection.changes"), id: "transcript-open-changes", size: 20) { _ in open(id) }) }
+      column.addArrangedSubview(row)
+      row.heightAnchor.constraint(equalToConstant: summary ? 42 : 36).isActive = true; row.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true
+      if index == 0, visible.count > 1 { let rule = NSBox(); rule.boxType = .separator; column.addArrangedSubview(rule); rule.widthAnchor.constraint(equalTo: column.widthAnchor).isActive = true }
+    }
+  }
+  required init?(coder: NSCoder) { nil }
 }
 
 extension NSLayoutConstraint {

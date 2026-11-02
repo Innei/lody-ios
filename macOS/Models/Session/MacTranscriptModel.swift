@@ -56,6 +56,7 @@ struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
   var groups: [String: String] = [:]
   var changedPaths: [String: String] = [:]
+  var changedFiles: [String: ChatFileDiff] = [:]
   var streaming = Set<String>()
   var permission: SessionPermission?
 
@@ -109,6 +110,7 @@ struct MacTranscriptModel {
         }
       case "changes", "changesHeader":
         items.append(.changes(id: row.id, text: row.text))
+        changedFiles[row.id] = row.fileDiff
         if let path = row.fileDiff?.path, !path.isEmpty { changedPaths[row.id] = path }
       case "chat_failed":
         items.append(.notice(id: row.id, text: row.text))

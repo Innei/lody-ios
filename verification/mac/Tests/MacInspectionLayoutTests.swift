@@ -25,4 +25,19 @@ final class MacInspectionLayoutTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(workspace.splitViewItems[1].viewController.view.bounds.width, 420)
     XCTAssertEqual(workspace.splitViewItems[2].viewController.view.bounds.width, 620, accuracy: 2)
   }
+  func testFileTabsUseTheNativeTitlebarInsteadOfAddingAnotherContentRow() throws {
+    let window = try XCTUnwrap(MacInspectionFixture.windows().first)
+    defer { window.close() }
+    window.layoutIfNeeded(); window.contentView?.layoutSubtreeIfNeeded()
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    let titlebarViews = window.titlebarAccessoryViewControllers.flatMap { descendants($0.view) }
+    let changes = try XCTUnwrap(titlebarViews.first { $0.accessibilityIdentifier() == "inspection-changes-tab" })
+    let rect = changes.convert(changes.bounds, to: nil)
+    XCTAssertGreaterThan(rect.minY, window.frame.height - 64, "File navigation must share the window chrome")
+    let workspace = try XCTUnwrap(window.contentViewController as? MacWorkspaceController)
+    let panel = workspace.splitViewItems[2].viewController.view
+    let range = try XCTUnwrap(descendants(panel).first { $0.accessibilityIdentifier() == "inspection-range" })
+    XCTAssertLessThan(abs(range.convert(range.bounds, to: nil).midY - rect.midY), 66, "A second header must not push Diff down")
+  }
+
 }
