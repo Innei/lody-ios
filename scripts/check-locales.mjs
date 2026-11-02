@@ -5,7 +5,6 @@ const root = path.join(import.meta.dirname, '..');
 const app = path.resolve(root, 'iOS');
 const shared = path.resolve(root, 'Shared/UIKit');
 const data = path.resolve(root, 'packages/LodyData/Sources');
-const mac = path.resolve(root, 'macOS');
 const problems = [];
 
 function signature(value) {
@@ -46,8 +45,6 @@ function readCatalog(file) {
 }
 
 const strings = readCatalog(path.join(data, 'Resources/Localizable.xcstrings'));
-const macCatalog = path.join(mac, 'Resources/Localizable.xcstrings');
-const macStrings = fs.existsSync(macCatalog) ? readCatalog(macCatalog) : {};
 const info = readCatalog(path.join(root, 'iOS/InfoPlist.xcstrings'));
 for (const key of [
   'CFBundleDisplayName',
@@ -58,9 +55,9 @@ for (const key of [
   if (!(key in info)) problems.push(`InfoPlist.xcstrings: missing ${key}`);
 }
 
-for (const base of [app, shared, data, path.join(root, 'Extensions'), mac]) {
+for (const base of [app, shared, data, path.join(root, 'Extensions')]) {
   if (!fs.existsSync(base)) continue;
-  const known = base === mac ? { ...strings, ...macStrings } : strings;
+  const known = strings;
   for (const file of fs.globSync('**/*.swift', { cwd: base })) {
     const source = fs.readFileSync(path.join(base, file), 'utf8');
     for (const match of source.matchAll(/String\(localized: "([^"\\]+)"/g)) {

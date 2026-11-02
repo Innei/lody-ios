@@ -19,7 +19,7 @@ async function swiftFiles(directory) {
   return nested.flat();
 }
 
-test('LodyData builds for both iOS and macOS', async () => {
+test('LodyData builds for iOS and macOS hosts', async () => {
   const manifest = await readFile(join(dataRoot, 'Package.swift'), 'utf8');
   assert.match(manifest, /\.iOS\("26\.0"\)/);
   assert.match(manifest, /\.macOS\("26\.0"\)/);

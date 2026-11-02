@@ -146,16 +146,6 @@ iOS/Services/              # App-specific I/O and data adapters
 iOS/Platform/              # iOS host, notifications, sharing and previews
 iOS/Debug/                 # Offline scene assembly, fixtures and development views
 iOS/Resources/             # Images, file icons and dependency notices
-macOS/Application/         # Mac entry, lifecycle, menus and live assembly
-macOS/ViewControllers/     # AppKit controllers grouped by feature, including Debug
-macOS/WindowControllers/   # Main window and settings window construction
-macOS/Views/               # AppKit views, SwiftUI settings and styling
-macOS/Models/              # Mac presentation state and projections
-macOS/Services/            # Mac service adapters
-macOS/Platform/            # Mac host, notifications and localization bundle
-macOS/Navigation/          # Window tabs, session assembly and onboarding chrome
-macOS/Debug/               # Offline scenes, fixtures and verification
-macOS/Resources/           # Mac String Catalog and dependency notices
 Extensions/                # Share, notification service and Live Activity
 Shared/UIKit/              # Shared ViewControllers, Views, Models and styling
 Shared/ShareSupport/       # Credential-free App Group snapshot and share inbox
@@ -166,7 +156,6 @@ runtime/decoder/           # Browser-safe decoding adapter
 scripts/                   # Asset generation and source checks
 verification/kit/          # Native behavior checks
 verification/ui/           # Offline UI verification
-verification/mac/          # Hosted app tests, offscreen checks and VM UI tests
 tests/                     # Protocol and tooling Node tests
 packages/LodyData/         # Shared auth, catalog, outbox, runtime and String Catalog
 packages/cloud-runtime/    # Bundled browser-safe protocol and contract

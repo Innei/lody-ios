@@ -37,7 +37,7 @@ final class DataRuntimeHostTests: XCTestCase {
     XCTAssertEqual(states, ["background"])
   }
 
-  func testLocalStoreRoundTripsOnMac() throws {
+  func testLocalStoreRoundTrips() throws {
     let local = store()
     try local.write("account", #"{"user":"u"}"#)
     XCTAssertEqual(try local.read("account"), #"{"user":"u"}"#)

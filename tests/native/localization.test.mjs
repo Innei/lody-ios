@@ -93,22 +93,6 @@ test('String Catalog checks accept reordered arguments and reject broken transla
     assert.match(result.stderr, /missing catalog key status/);
 
     await save(catalog, { summary: entry('Summary'), status: entry('Status') });
-    const mac = path.join(root, 'macOS');
-    await mkdir(path.join(mac, 'Resources'), { recursive: true });
-    await writeFile(
-      path.join(mac, 'Menu.swift'),
-      'let quit = String(localized: "mac.quit", bundle: .lodyMac)',
-    );
-    await save(path.join(mac, 'Resources/Localizable.xcstrings'), {});
-    result = run();
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /missing catalog key mac\.quit/);
-
-    await save(path.join(mac, 'Resources/Localizable.xcstrings'), {
-      'mac.quit': entry('Quit'),
-    });
-    result = run();
-    assert.equal(result.status, 0, result.stderr);
     for (const directory of [
       path.join(app, 'iOS/Features/Home'),
       path.join(app, 'Shared/UIKit/Composer'),

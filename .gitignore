@@ -17,7 +17,6 @@ Libraries/SimulatorTransport/DataChannel/.build/
 packages/lody-core/.build/
 packages/LodyData/.build/
 packages/lody-core/.swiftpm/
-apps/macos/Resources/Generated/
 **/xcuserdata/
 .build/
 

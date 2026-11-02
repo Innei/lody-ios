@@ -35,12 +35,6 @@ TARGETS = (
         'resources': set(),
     },
     {
-        'name': 'LodyMac',
-        'root': Path('macOS'),
-        'compile': {'.swift'},
-        'resources': set(),
-    },
-    {
         'name': 'Extensions',
         'root': Path('Extensions'),
         'compile': {'.swift', '.m', '.metal'},

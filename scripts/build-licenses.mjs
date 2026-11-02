@@ -1,6 +1,5 @@
-// Regenerates `iOS/Resources/Licenses/LodyLicenses.json` and
-// `macOS/Resources/LodyLicenses.json`, the data behind each app's open source
-// licenses screen. Each app lists only the components it ships.
+// Regenerates `iOS/Resources/Licenses/LodyLicenses.json`, the data behind the
+// app's open source licenses screen.
 //
 // The list is the production dependency closure of the app (every library that
 // can end up in the shipped build), plus the native and vendored components that
@@ -101,50 +100,7 @@ const nativeComponents = [
   },
 ];
 
-/** Swift packages the Mac app links that the iOS list does not name. */
-const macComponents = [
-  ...nativeComponents.filter((component) =>
-    ['MarkdownView', 'Litext'].includes(component.name),
-  ),
-  {
-    name: 'Lody (sign-in jellyfish shader)',
-    license: 'Apache-2.0',
-    url: 'https://github.com/LodyAI/Lody',
-    file: 'scripts/licenses/Lody-LICENSE.txt',
-  },
-  {
-    name: 'DisplayLink',
-    license: 'MIT',
-    url: 'https://github.com/Lakr233/DisplayLink',
-    file: 'scripts/licenses/DisplayLink-LICENSE.txt',
-  },
-  {
-    name: 'LRUCache',
-    license: 'MIT',
-    url: 'https://github.com/nicklockwood/LRUCache',
-    file: 'scripts/licenses/LRUCache-LICENSE.txt',
-  },
-  {
-    name: 'swift-cmark',
-    license: 'BSD-2-Clause',
-    url: 'https://github.com/swiftlang/swift-cmark',
-    file: 'scripts/licenses/swift-cmark-LICENSE.txt',
-  },
-  {
-    name: 'Swift Collections',
-    license: 'Apache-2.0',
-    url: 'https://github.com/apple/swift-collections',
-    file: 'scripts/licenses/swift-collections-LICENSE.txt',
-  },
-  {
-    name: 'SwiftMath',
-    license: 'MIT',
-    url: 'https://github.com/mgriebling/SwiftMath',
-    file: 'scripts/licenses/SwiftMath-LICENSE.txt',
-  },
-];
-
-/** Each app's own license comes first, so its notices carry the AGPL text. */
+/** The app's own license comes first, so its notices carry the AGPL text. */
 const targets = [
   {
     output: 'iOS/Resources/Licenses/LodyLicenses.json',
@@ -155,17 +111,6 @@ const targets = [
       file: 'LICENSE',
     },
     components: nativeComponents,
-  },
-  {
-    output: 'macOS/Resources/LodyLicenses.json',
-    firstParty: {
-      name: 'Lody for Mac',
-      license: 'AGPL-3.0-only',
-      url: 'https://github.com/Innei/lody-ios',
-      file: 'LICENSE',
-      heading: 'Lody for Mac',
-    },
-    components: macComponents,
   },
 ];
 
