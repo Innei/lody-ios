@@ -29,7 +29,7 @@ def drag_grabber(to_y, duration='.6'):
 
 
 ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '.8')
-ui.axe('type', ' '.join(f'word{index}' for index in range(60)))
+ui.type_into('session-input', ' '.join(f'word{index}' for index in range(60)))
 ui.wait(lambda items: visible('session-grabber', items), 'The open sheet has no grabber')
 assert not visible('session-expand'), 'The expand button must be gone'
 inline = frame('session-input')
@@ -51,6 +51,7 @@ ui.capture('fullscreen')
 
 ui.axe('tap', '--id', 'composer-format-bold', '--post-delay', '.3')
 ui.axe('type', 'bold')
+ui.restore_software_keyboard()
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'session-input' and 'bold' in (item.get('AXValue') or '') for item in items),
         'Typing after Bold did not reach the input')
 ui.capture('formatted')
@@ -78,10 +79,18 @@ assert resting_keyboard, 'The software keyboard must be up before collapsing the
 sheet = frame('session-input', resting_items)
 title = frame('chat-navigation-title', resting_items)
 grip = frame('session-grabber', resting_items)
+short_draft = next(item.get('AXValue') for item in resting_items if item.get('AXUniqueId') == 'session-input')
 drag_grabber(grip['y'] + 30, duration='1.2')
-ui.wait(lambda items: abs(frame('session-input', items)['height'] - sheet['height']) <= 1 and (keyboard_top(items) or 0) == resting_keyboard,
-        'A short slow collapse drag must spring back to the sheet with the keyboard up')
-ui.capture('collapse-cancelled')
+ui.wait(lambda items: abs(frame('session-input', items)['height'] - 48) <= 1 and not ui.visible_keyboard(items),
+        'A downward release must follow the native keyboard and continue to the capsule, even after a short drag')
+assert ui.element('session-input').get('AXValue') == short_draft, 'A short collapse lost the draft'
+ui.capture('short-collapse')
+ui.axe('tap', '--id', 'session-input', '--post-delay', '.8')
+resting_items = ui.wait(lambda items: items if visible('session-grabber', items) and keyboard_top(items) else None,
+                        'Reopening after a short collapse must restore the sheet and keyboard')
+resting_keyboard = keyboard_top(resting_items)
+sheet = frame('session-input', resting_items)
+title = frame('chat-navigation-title', resting_items)
 
 grip = frame('session-grabber')
 x = grip['x'] + grip['width'] / 2
@@ -89,7 +98,7 @@ y = grip['y'] + grip['height'] / 2
 finger_end = y + 160
 assert finger_end < resting_keyboard, 'The collapse drag must stay above the resting keyboard to prove it follows from the start'
 drag = threading.Thread(target=ui.axe, args=('drag', '--start-x', str(x), '--start-y', str(y), '--end-x', str(x), '--end-y', str(finger_end),
-                                             '--duration', '8', '--steps', '240'))
+                                             '--duration', '8', '--steps', '240', '--post-delay', '1'))
 resting_bottom = sheet['y'] + sheet['height']
 drag_started = time.monotonic()
 drag.start()
@@ -98,6 +107,7 @@ time.sleep(4)
 ui.screenshot('collapse-midway')
 sample_started = time.monotonic()
 mid_items = ui.state()
+ui.restore_software_keyboard()
 sample_finished = time.monotonic()
 mid_input = next(item['frame'] for item in mid_items if item.get('AXUniqueId') == 'session-input')
 mid_title = next(item['frame'] for item in mid_items if item.get('AXUniqueId') == 'chat-navigation-title')
@@ -117,4 +127,4 @@ assert 48 < mid_input['height'] < sheet['height'] - 10, f'The input must shrink 
 ui.wait(lambda items: abs(frame('session-input', items)['height'] - 48) <= 1 and not ui.visible_keyboard(items),
         'Releasing a collapse drag must land on the capsule with the keyboard down')
 ui.capture('closed')
-print('PASS: grabber drag to full screen with format bar, drag back, tap toggle, cancelled collapse, and keyboard-following collapse')
+print('PASS: grabber drag to full screen with format bar, drag back, tap toggle, native short-drag dismissal, reopening, and keyboard-following collapse')

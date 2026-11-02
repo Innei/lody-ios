@@ -660,7 +660,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var collapseProgress: CGFloat = 0
   private var collapseDistance: CGFloat = 1
   private var collapseStartHeight: CGFloat = 0
+  private var collapseDragBottom: CGFloat = 0
   private var collapseInputHeight: CGFloat?
+  private var completingCollapse = false
+  private var collapseCompletionID = 0
+  private var collapseAnimator: UIViewPropertyAnimator?
+  private var collapseAnimationFinished = false
+  private var collapseKeyboardHidden = false
   private lazy var formatBar = ChatComposerFormatBar(editor: input.editor)
   private var formatHeight: NSLayoutConstraint!
   private let fullScreenDim = UIView()
@@ -741,6 +747,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if abs(input.bounds.width - measuredWidth) > 0.5 {
       measuredWidth = input.bounds.width
       updateComposer()
+    }
+    if let host = superview {
+      let keyboard = host.keyboardLayoutGuide
+      let touch = grabber.convert(CGPoint(x: grabber.bounds.midX, y: grabber.bounds.midY), to: self)
+      grabber.prepareKeyboard(guide: keyboard, padding: bounds.maxY - touch.y,
+        enabled: composerExpanded && allowsFullScreen && !fullScreen && dragProgress == nil)
     }
   }
 
@@ -852,6 +864,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     permissionButton.showsMenuAsPrimaryAction = true
     grabber.onToggle = { [weak self] in self?.toggleFullScreen() }
     grabber.onPan = { [weak self] in self?.dragGrabber($0) }
+    grabber.onKeyboardDismiss = { [weak self] duration, _ in self?.completeCollapse(duration: duration) }
+    grabber.onKeyboardReturn = { [weak self] in self?.cancelCollapse(duration: $0, options: $1) }
+    grabber.onKeyboardHidden = { [weak self] in
+      self?.collapseKeyboardHidden = true
+      self?.finishCollapse()
+    }
     formatBar.clipsToBounds = true
     formatBar.onChange = { [weak self] in self?.updateComposer() }
     fullScreenDim.backgroundColor = UIColor.black.withAlphaComponent(0.22)
@@ -1012,6 +1030,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     super.didMoveToWindow()
     if window == nil {
       saveDraft()
+      collapseCompletionID += 1
+      collapseAnimator?.stopAnimation(true)
+      collapseAnimator = nil
+      transform = .identity
+      completingCollapse = false
+      collapseProgress = 0
+      grabber.releaseKeyboard()
+      input.endViewportResize()
+      collapseInputHeight = nil
       #if !LODY_SHARE_EXTENSION
       attachmentOverlay.cancel()
       #endif
@@ -1348,15 +1375,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState], animations: changes, completion: finish)
   }
-  enum GrabberRelease { case close, sheet, fullScreen }
+  enum GrabberRelease { case sheet, fullScreen }
   enum GrabberDrag { case resize, collapse }
   static func grabberDrag(fromFullScreen: Bool, velocity: CGFloat) -> GrabberDrag {
     !fromFullScreen && velocity > 0 ? .collapse : .resize
   }
-  static func grabberRelease(_ drag: GrabberDrag, progress: CGFloat, translation: CGFloat, velocity: CGFloat) -> GrabberRelease {
-    if drag == .collapse {
-      return velocity >= 0 && (translation > 60 || velocity > 600) ? .close : .sheet
-    }
+  static func grabberRelease(progress: CGFloat, velocity: CGFloat) -> GrabberRelease {
     if abs(velocity) > 600 { return velocity < 0 ? .fullScreen : .sheet }
     return progress > 0.5 ? .fullScreen : .sheet
   }
@@ -1381,38 +1405,110 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     switch pan.state {
     case .began:
       guard follows else { return }
-      let keyboard = keyboardLayoutGuide.layoutFrame
+      let host = superview ?? self
+      let keyboard = host.keyboardLayoutGuide.layoutFrame
       collapseStartHeight = bounds.height
+      collapseDragBottom = frame.maxY
       let shrink = inputHeight.constant - 48 + accessoryHeight.constant + grabberHeight.constant
         + attachmentHeight.constant + attachmentTop.constant - 8
-      collapseDistance = max(80, keyboard.height - safeAreaInsets.bottom) + max(0, shrink)
+      collapseDistance = max(80, keyboard.height - host.safeAreaInsets.bottom) + max(0, shrink)
       collapseInputHeight = inputHeight.constant
       input.beginViewportResize()
-      grabber.followKeyboard(fromTouchY: pan.location(in: self).y, keyboardTop: keyboard.minY) { translation, velocity in
-        Self.grabberRelease(.collapse, progress: 0, translation: translation, velocity: velocity) == .sheet
-      }
+      grabber.followKeyboard(guide: host.keyboardLayoutGuide, fromTouchY: pan.location(in: host).y, keyboardTop: keyboard.minY)
     case .changed:
       guard follows else { return }
       setCollapseProgress(translation / collapseDistance)
       (window ?? self).layoutIfNeeded()
       grabber.updateKeyboard(shrinkingBy: collapseStartHeight - bounds.height)
-    default:
-      grabber.releaseKeyboard()
-      let release = Self.grabberRelease(.collapse, progress: collapseProgress, translation: translation, velocity: pan.velocity(in: self).y)
-      if pan.state == .ended && release == .close {
-        input.endViewportResize()
-        collapseInputHeight = nil
-        if input.resignFirstResponder() { return }
+      collapseDragBottom = frame.maxY
+    case .ended:
+      // The scroll view owns the release decision and keyboard animation. Ending
+      // editing here sends a second hide request and cuts that animation short.
+      if !follows, translation > 0 { input.resignFirstResponder() }
+    case .cancelled, .failed:
+      cancelCollapse(duration: 0.42, options: [.beginFromCurrentState, .curveEaseOut, .allowUserInteraction])
+    default: break
+    }
+  }
+  private func completeCollapse(duration: TimeInterval) {
+    guard input.preservesViewport, !completingCollapse else { return }
+    let root = window ?? self
+    completingCollapse = true
+    collapseCompletionID += 1
+    let completionID = collapseCompletionID
+    collapseAnimationFinished = false
+    collapseKeyboardHidden = false
+    preserveCollapsePosition(in: root)
+    let changes = {
+      self.setCollapseProgress(1)
+      self.transform = .identity
+      root.layoutIfNeeded()
+    }
+    if window == nil || UIAccessibility.isReduceMotionEnabled {
+      UIView.performWithoutAnimation(changes)
+      collapseAnimationFinished = true
+      finishCollapse()
+    } else {
+      // The keyboard's hidden notification can precede its visual settling.
+      // Keep the panel's lifetime independent of that notification.
+      let animator = UIViewPropertyAnimator(duration: duration, curve: .easeOut, animations: changes)
+      collapseAnimator = animator
+      animator.addCompletion { [weak self] position in
+        guard let self, self.collapseCompletionID == completionID, position == .end else { return }
+        self.collapseAnimator = nil
+        self.collapseAnimationFinished = true
+        self.finishCollapse()
       }
-      guard follows else { return }
-      UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-        self.setCollapseProgress(0)
-        (self.window ?? self).layoutIfNeeded()
+      animator.startAnimation()
+    }
+  }
+  private func preserveCollapsePosition(in root: UIView) {
+    // The guide publishes its final keyboard position before the notification.
+    // Keep the last dragged position while applying that layout, then animate
+    // this temporary translation away together with the panel's remaining size.
+    UIView.performWithoutAnimation {
+      self.transform = .identity
+      root.layoutIfNeeded()
+      self.transform = CGAffineTransform(translationX: 0, y: self.collapseDragBottom - self.frame.maxY)
+    }
+  }
+  private func finishCollapse() {
+    guard completingCollapse, collapseAnimationFinished, collapseKeyboardHidden else { return }
+    grabber.releaseKeyboard()
+    // UIKit has finished moving the keyboard. Only now replace the held
+    // multiline viewport with the resting one-line presentation.
+    let restyle = {
+      UIView.performWithoutAnimation {
         self.input.endViewportResize()
         self.collapseInputHeight = nil
+        self.completingCollapse = false
         self.updateComposer()
         (self.window ?? self).layoutIfNeeded()
       }
+    }
+    UIView.transition(with: inputSurface.contentView, duration: 0.12,
+      options: [.transitionCrossDissolve, .allowUserInteraction], animations: restyle)
+  }
+  private func cancelCollapse(duration: TimeInterval, options: UIView.AnimationOptions) {
+    guard input.preservesViewport else { return }
+    collapseAnimator?.stopAnimation(true)
+    collapseAnimator = nil
+    completingCollapse = false
+    collapseCompletionID += 1
+    let completionID = collapseCompletionID
+    let root = window ?? self
+    preserveCollapsePosition(in: root)
+    UIView.animate(withDuration: duration, delay: 0, options: options) {
+      self.setCollapseProgress(0)
+      self.transform = .identity
+      root.layoutIfNeeded()
+    } completion: { finished in
+      guard finished, self.collapseCompletionID == completionID, !self.completingCollapse else { return }
+      self.grabber.releaseKeyboard()
+      self.input.endViewportResize()
+      self.collapseInputHeight = nil
+      self.updateComposer()
+      (self.window ?? self).layoutIfNeeded()
     }
   }
   private func dragResize(_ pan: UIPanGestureRecognizer, in superview: UIView) {
@@ -1438,7 +1534,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       let velocity = pan.velocity(in: superview).y
       let progress = dragProgress ?? dragStart
       dragProgress = nil
-      let target = Self.grabberRelease(.resize, progress: progress, translation: translation, velocity: velocity) == .fullScreen
+      let target = Self.grabberRelease(progress: progress, velocity: velocity) == .fullScreen
       fullScreen = target
       updateComposer()
       let settle = {
@@ -1502,7 +1598,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     mentionButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
     let sending = state.sending || pendingDraft != nil
     if !state.editable && input.isFirstResponder { input.resignFirstResponder() }
-    let expanded = input.isFirstResponder
+    let expanded = input.isFirstResponder || completingCollapse
     let expansionChanged = composerExpanded != expanded
     // The bottom anchor belongs to the host; animate its layout with the contents.
     let layoutRoot = window ?? superview ?? self
@@ -1585,8 +1681,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     let showsGrabber = expanded && allowsFullScreen
     grabber.isHidden = !showsGrabber
-    grabber.alpha = sheetShare
-    grabberHeight.constant = showsGrabber ? ChatComposerGrabber.height * sheetShare : 0
+    // Its scroll view still owns the keyboard's release animation. Making it
+    // invisible or zero-sized cancels that interaction before UIKit finishes.
+    let keepsGrabberAlive = input.preservesViewport
+    grabber.alpha = keepsGrabberAlive ? max(0.01, sheetShare) : sheetShare
+    var gripHeight = ChatComposerGrabber.height * sheetShare
+    if keepsGrabberAlive { gripHeight = max(1, gripHeight) }
+    grabberHeight.constant = showsGrabber ? gripHeight : 0
     grabber.accessibilityLabel = String(localized: String.LocalizationValue(fullScreen ? "native.chat.composer.collapse" : "native.chat.composer.expand"), bundle: .lody)
     let fullProgress = dragProgress ?? (fullScreen ? 1 : 0)
     let toolbarShare = max(0, 1 - collapse * 2)
@@ -1762,11 +1863,31 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
   }
   func textViewDidChange(_ textView: UITextView) { updateComposer() }
-  func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
-  func textViewDidEndEditing(_ textView: UITextView) {
+  func textViewDidBeginEditing(_ textView: UITextView) {
     grabber.releaseKeyboard()
-    input.endViewportResize()
-    collapseInputHeight = nil
+    if completingCollapse {
+      collapseCompletionID += 1
+      collapseAnimator?.stopAnimation(true)
+      collapseAnimator = nil
+      transform = .identity
+      completingCollapse = false
+      collapseProgress = 0
+      input.endViewportResize()
+      collapseInputHeight = nil
+      composerExpanded = false
+    }
+    updateComposer()
+  }
+  func textViewDidEndEditing(_ textView: UITextView) {
+    if input.preservesViewport {
+      saveDraft()
+      return
+    }
+    if !completingCollapse {
+      grabber.releaseKeyboard()
+      input.endViewportResize()
+      collapseInputHeight = nil
+    }
     setFullScreen(false)
     updateComposer()
     saveDraft()

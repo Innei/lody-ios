@@ -999,21 +999,13 @@ precondition(ChatComposerView.grabberDrag(fromFullScreen: false, velocity: -300)
   "An upward drag from the default sheet resizes toward full screen")
 precondition(ChatComposerView.grabberDrag(fromFullScreen: true, velocity: 900) == .resize,
   "A downward drag from full screen only returns to the default sheet")
-precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.1, translation: 40, velocity: 1500) == .close,
-  "A fast downward flick from the default sheet must close it")
-precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.2, translation: 70, velocity: 0) == .close,
-  "A long downward drag from the default sheet must close it")
-precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.05, translation: 20, velocity: 100) == .sheet,
-  "A short slow collapse drag springs back to the sheet")
-precondition(ChatComposerView.grabberRelease(.collapse, progress: 0.1, translation: 30, velocity: -900) == .sheet,
-  "Flicking back up during a collapse returns to the sheet, never full screen")
-precondition(ChatComposerView.grabberRelease(.resize, progress: 0.8, translation: 40, velocity: 1500) == .sheet,
+precondition(ChatComposerView.grabberRelease(progress: 0.8, velocity: 1500) == .sheet,
   "A fast downward flick from full screen returns to the default sheet")
-precondition(ChatComposerView.grabberRelease(.resize, progress: 0, translation: 120, velocity: 1500) == .sheet,
+precondition(ChatComposerView.grabberRelease(progress: 0, velocity: 1500) == .sheet,
   "A resize drag never closes the sheet")
-precondition(ChatComposerView.grabberRelease(.resize, progress: 0.2, translation: -30, velocity: -900) == .fullScreen,
+precondition(ChatComposerView.grabberRelease(progress: 0.2, velocity: -900) == .fullScreen,
   "A fast upward flick opens full screen")
-precondition(ChatComposerView.grabberRelease(.resize, progress: 0.6, translation: -100, velocity: 0) == .fullScreen,
+precondition(ChatComposerView.grabberRelease(progress: 0.6, velocity: 0) == .fullScreen,
   "Releasing past halfway opens full screen")
 precondition(!descendants(glassComposer).contains { $0.accessibilityIdentifier == "session-expand" }, "The grabber replaces the expand button")
 let glassFormat = descendants(glassComposer).compactMap { $0 as? ChatComposerFormatBar }.first!
@@ -1060,19 +1052,35 @@ print("Composer collapse: the sheet shrinks continuously into the resting capsul
   override var state: UIGestureRecognizer.State { get { phase } set { phase = newValue } }
   override func translation(in view: UIView?) -> CGPoint { CGPoint(x: 0, y: distance) }
   override func velocity(in view: UIView?) -> CGPoint { CGPoint(x: 0, y: 100) }
-  override func location(in view: UIView?) -> CGPoint { CGPoint(x: 195, y: 10) }
+  // The command-line host has no onscreen keyboard. Keep the same 200-point
+  // touch-to-keyboard gap as a real grabber independently of that guide's frame.
+  override func location(in view: UIView?) -> CGPoint {
+    CGPoint(x: 195, y: (view?.keyboardLayoutGuide.layoutFrame.minY ?? 0) - 200)
+  }
 }
 let collapsePan = CollapsePan()
 let collapseGrabber = grabber as! ChatComposerGrabber
+// The scripted recognizer has no system keyboard. Send the same lifecycle
+// events UIKit delivers when its scroll view finishes an interactive dismissal.
+@MainActor func keyboardDismissalBegan() {
+  NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
+    UIResponder.keyboardAnimationDurationUserInfoKey: 0.4,
+    UIResponder.keyboardAnimationCurveUserInfoKey: 7,
+  ])
+}
+@MainActor func keyboardDismissalFinished() {
+  NotificationCenter.default.post(name: UIResponder.keyboardDidHideNotification, object: nil)
+}
+glassWindow.layoutIfNeeded()
 let collapseStartHeight = glassComposer.bounds.height
 collapseGrabber.onPan?(collapsePan)
-let initialKeyboardShift = ChatComposerKeyboardTouch.shift
+let initialKeyboardPadding = glassWindow.keyboardLayoutGuide.keyboardDismissPadding
 collapsePan.phase = .changed
 for distance: CGFloat in [20, 80, 160, 80] {
   collapsePan.distance = distance
   collapseGrabber.onPan?(collapsePan)
   let heightLost = collapseStartHeight - glassComposer.bounds.height
-  let keyboardTravel = distance + ChatComposerKeyboardTouch.shift - initialKeyboardShift
+  let keyboardTravel = distance + glassWindow.keyboardLayoutGuide.keyboardDismissPadding - initialKeyboardPadding
   precondition(heightLost > 0 && abs(keyboardTravel + heightLost - distance) < 1,
     "The keyboard travel plus composer shrink must match the finger, including reversal: distance \(distance), keyboard \(keyboardTravel), shrink \(heightLost)")
 }
@@ -1118,10 +1126,61 @@ collapsePan.phase = .began
 collapsePan.distance = 0
 collapseGrabber.onPan?(collapsePan)
 collapsePan.phase = .changed
+collapsePan.distance = 160
+collapseGrabber.onPan?(collapsePan)
+let anchorAtRelease = glassInput.convert(glassInput.caretRect(for: anchor), to: glassInput.superview)
+collapsePan.phase = .ended
+collapseGrabber.onPan?(collapsePan)
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+precondition(glassInput.isFirstResponder,
+  "The composer must wait for UIKit's keyboard dismissal, rather than force a second dismissal from its own animation completion")
+keyboardDismissalBegan()
+glassInput.resignFirstResponder()
+keyboardDismissalFinished()
+RunLoop.current.run(until: Date().addingTimeInterval(0.06))
+let anchorWhileSettling = glassInput.convert(glassInput.caretRect(for: anchor), to: glassInput.superview)
+precondition(abs(anchorWhileSettling.minY - anchorAtRelease.minY) < 1
+  && abs(anchorWhileSettling.minX - anchorAtRelease.minX) < 1,
+  "Lifting the finger must continue the collapse with the same visible text, rather than immediately switch to the one-line draft: release \(anchorAtRelease), settling \(anchorWhileSettling)")
+precondition(abs(glassInput.contentOffset.y - scrolledOffset.y) < 1,
+  "An early keyboard-hidden notification must not cut the panel animation short or restyle its text")
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+glassComposer.layoutIfNeeded()
+precondition(!glassInput.isFirstResponder && abs(glassInput.bounds.height - 48) < 1 && glassInput.contentOffset == .zero,
+  "The completed release must land on the resting one-line input")
+glassInput.becomeFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+glassInput.setContentOffset(scrolledOffset, animated: false)
+collapsePan.phase = .began
+collapsePan.distance = 0
+collapseGrabber.onPan?(collapsePan)
+collapsePan.phase = .changed
+collapsePan.distance = 160
+collapseGrabber.onPan?(collapsePan)
+collapsePan.phase = .ended
+collapseGrabber.onPan?(collapsePan)
+keyboardDismissalBegan()
+RunLoop.current.run(until: Date().addingTimeInterval(0.04))
+// UIKit ends editing as its interactive keyboard dismissal starts; the scripted
+// recognizer does not own a keyboard, so reproduce that event before reopening.
+glassInput.resignFirstResponder()
+glassInput.becomeFirstResponder()
+keyboardDismissalFinished()
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+glassComposer.layoutIfNeeded()
+precondition(glassInput.isFirstResponder && glassInput.bounds.height > 48 && glassInput.text == scrolledDraft,
+  "Reopening during the release animation must interrupt it; its old completion must not collapse or clear the reopened input")
+glassInput.setContentOffset(scrolledOffset, animated: false)
+collapsePan.phase = .began
+collapsePan.distance = 0
+collapseGrabber.onPan?(collapsePan)
+collapsePan.phase = .changed
 collapsePan.distance = 20
 collapseGrabber.onPan?(collapsePan)
+keyboardDismissalBegan()
 glassInput.resignFirstResponder()
-RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+keyboardDismissalFinished()
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
 glassComposer.layoutIfNeeded()
 precondition(glassInput.contentOffset == .zero && !glassInput.isScrollEnabled && abs(glassInput.bounds.height - 48) < 1,
   "Losing focus during a drag must release the held viewport and return to the resting one-line input")
@@ -1129,6 +1188,29 @@ glassInput.becomeFirstResponder()
 glassInput.text = ""
 glassComposer.textViewDidChange(glassInput)
 print("Composer collapse: a scrolled multiline draft stays anchored through dragging, reversal and cancellation")
+print("Composer collapse: release continues to the capsule before restyling text, and reopening interrupts it")
+let keyboardTrack = descendants(collapseGrabber).compactMap { $0 as? UIScrollView }.first!
+collapsePan.phase = .began
+collapsePan.distance = 0
+_ = collapseGrabber.perform(NSSelectorFromString("pan:"), with: collapsePan)
+keyboardTrack.contentOffset = CGPoint(x: 0, y: 3900)
+let trackedOffset = keyboardTrack.contentOffset
+collapsePan.phase = .changed
+collapsePan.distance = 20
+_ = collapseGrabber.perform(NSSelectorFromString("pan:"), with: collapsePan)
+precondition(keyboardTrack.contentOffset == trackedOffset,
+  "Resizing the grabber while dragging must not reset its scroll position and interrupt interactive keyboard motion")
+collapsePan.phase = .ended
+collapsePan.distance = 160
+_ = collapseGrabber.perform(NSSelectorFromString("pan:"), with: collapsePan)
+precondition(keyboardTrack.contentOffset == trackedOffset,
+  "Lifting the finger must let the keyboard finish before recentering the grabber's scroll view")
+keyboardDismissalBegan()
+glassInput.resignFirstResponder()
+keyboardDismissalFinished()
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+glassInput.becomeFirstResponder()
+print("Composer grabber: scroll position stays continuous through resizing and release")
 glassComposer.allowsFullScreen = false
 glassComposer.layoutIfNeeded()
 precondition(grabber!.isHidden, "Hosts without full screen have no grabber")
