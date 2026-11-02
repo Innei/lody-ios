@@ -1053,6 +1053,82 @@ let restoredSurface = glassInputSurface.convert(glassInputSurface.bounds, to: gl
 precondition(restoredSurface == sheetSurface && abs(glassInput.bounds.height - sheetInputHeight) < 0.5 && grabber!.alpha > 0.99 && glassModel.alpha > 0.99,
   "Cancelling a collapse must restore the sheet exactly; got \(restoredSurface) vs \(sheetSurface)")
 print("Composer collapse: the sheet shrinks continuously into the resting capsule and restores on cancel")
+
+@MainActor final class CollapsePan: UIPanGestureRecognizer {
+  var phase: UIGestureRecognizer.State = .began
+  var distance: CGFloat = 0
+  override var state: UIGestureRecognizer.State { get { phase } set { phase = newValue } }
+  override func translation(in view: UIView?) -> CGPoint { CGPoint(x: 0, y: distance) }
+  override func velocity(in view: UIView?) -> CGPoint { CGPoint(x: 0, y: 100) }
+  override func location(in view: UIView?) -> CGPoint { CGPoint(x: 195, y: 10) }
+}
+let collapsePan = CollapsePan()
+let collapseGrabber = grabber as! ChatComposerGrabber
+let collapseStartHeight = glassComposer.bounds.height
+collapseGrabber.onPan?(collapsePan)
+let initialKeyboardShift = ChatComposerKeyboardTouch.shift
+collapsePan.phase = .changed
+for distance: CGFloat in [20, 80, 160, 80] {
+  collapsePan.distance = distance
+  collapseGrabber.onPan?(collapsePan)
+  let heightLost = collapseStartHeight - glassComposer.bounds.height
+  let keyboardTravel = distance + ChatComposerKeyboardTouch.shift - initialKeyboardShift
+  precondition(heightLost > 0 && abs(keyboardTravel + heightLost - distance) < 1,
+    "The keyboard travel plus composer shrink must match the finger, including reversal: distance \(distance), keyboard \(keyboardTravel), shrink \(heightLost)")
+}
+collapsePan.phase = .cancelled
+collapseGrabber.onPan?(collapsePan)
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+precondition(glassInput.isFirstResponder && abs(glassComposer.bounds.height - collapseStartHeight) < 1,
+  "A cancelled drag past the dismissal threshold must restore the expanded composer and keep focus")
+print("Composer collapse: keyboard travel and height reduction share the finger's displacement")
+
+glassInput.text = (0..<60).map { "word\($0)" }.joined(separator: " ")
+glassComposer.textViewDidChange(glassInput)
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+glassComposer.layoutIfNeeded()
+glassInput.setContentOffset(CGPoint(x: 0, y: max(0, glassInput.contentSize.height - glassInput.bounds.height) / 2), animated: false)
+let scrolledDraft = glassInput.text
+let scrolledSelection = glassInput.selectedRange
+let scrolledOffset = glassInput.contentOffset
+precondition(scrolledOffset.y > 40, "The collapse regression must start with a scrolled multiline draft")
+let anchor = glassInput.closestPosition(to: CGPoint(x: glassInput.textContainerInset.left + 8,
+  y: glassInput.bounds.minY + glassInput.textContainerInset.top + 24))!
+let anchorBefore = glassInput.convert(glassInput.caretRect(for: anchor), to: glassInput.superview)
+collapsePan.phase = .began
+collapsePan.distance = 0
+collapseGrabber.onPan?(collapsePan)
+collapsePan.phase = .changed
+for distance: CGFloat in [20, 80, 160, 80] {
+  collapsePan.distance = distance
+  collapseGrabber.onPan?(collapsePan)
+  RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+  glassComposer.layoutIfNeeded()
+  let anchorDuring = glassInput.convert(glassInput.caretRect(for: anchor), to: glassInput.superview)
+  precondition(abs(anchorDuring.minY - anchorBefore.minY) < 1 && abs(anchorDuring.minX - anchorBefore.minX) < 1,
+    "A scrolled draft must keep its visible text anchored during collapse, not reflow or jump: before \(anchorBefore), during \(anchorDuring), distance \(distance)")
+}
+collapsePan.phase = .cancelled
+collapseGrabber.onPan?(collapsePan)
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+precondition(glassInput.text == scrolledDraft && glassInput.selectedRange == scrolledSelection
+  && abs(glassInput.contentOffset.y - scrolledOffset.y) < 1,
+  "Cancelling a collapse must preserve the draft, selection and visible scroll position")
+collapsePan.phase = .began
+collapsePan.distance = 0
+collapseGrabber.onPan?(collapsePan)
+collapsePan.phase = .changed
+collapsePan.distance = 20
+collapseGrabber.onPan?(collapsePan)
+glassInput.resignFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+glassComposer.layoutIfNeeded()
+precondition(glassInput.contentOffset == .zero && !glassInput.isScrollEnabled && abs(glassInput.bounds.height - 48) < 1,
+  "Losing focus during a drag must release the held viewport and return to the resting one-line input")
+glassInput.becomeFirstResponder()
+glassInput.text = ""
+glassComposer.textViewDidChange(glassInput)
+print("Composer collapse: a scrolled multiline draft stays anchored through dragging, reversal and cancellation")
 glassComposer.allowsFullScreen = false
 glassComposer.layoutIfNeeded()
 precondition(grabber!.isHidden, "Hosts without full screen have no grabber")

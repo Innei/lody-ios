@@ -10,6 +10,7 @@ final class ChatComposerGrabber: UIView {
   // It rests mid-content because a sheet takes over pulls from a scroll view sitting at its top edge.
   private let track = UIScrollView()
   private static let trackRunway: CGFloat = 4000
+  private var keyboardShift: CGFloat = 0
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -54,10 +55,17 @@ final class ChatComposerGrabber: UIView {
   }
 
   func followKeyboard(fromTouchY touchY: CGFloat, keyboardTop: CGFloat, keepsKeyboard: @escaping (_ translation: CGFloat, _ velocity: CGFloat) -> Bool) {
-    ChatComposerKeyboardTouch.shift = keyboardTop - touchY
+    keyboardShift = keyboardTop - touchY
+    ChatComposerKeyboardTouch.shift = keyboardShift
     ChatComposerKeyboardTouch.keepsKeyboard = keepsKeyboard
     ChatComposerKeyboardTouch.translation = 0
     track.keyboardDismissMode = .interactive
+  }
+
+  func updateKeyboard(shrinkingBy height: CGFloat) {
+    // The panel's lost height already moves its top down. Give only the remaining
+    // finger travel to the keyboard so both movements add up to the same drag.
+    ChatComposerKeyboardTouch.shift = keyboardShift - height
   }
 
   func releaseKeyboard() {

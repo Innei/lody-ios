@@ -195,6 +195,40 @@ private final class ComposerPasteJob: @unchecked Sendable {
 final class ChatComposerInput: TextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
   var onPasteLongText: ((ComposerPaste) -> Bool)?
+  private var resizingViewport: (width: CGFloat, offset: CGPoint, tracksWidth: Bool)?
+  var preservesViewport: Bool { resizingViewport != nil }
+
+  func beginViewportResize() {
+    // Resize the visible viewport without reflowing the draft or moving the user's place in it.
+    guard resizingViewport == nil else { return }
+    resizingViewport = (textContainer.size.width, contentOffset, textContainer.widthTracksTextView)
+    textContainer.widthTracksTextView = false
+  }
+
+  func endViewportResize() {
+    guard let viewport = resizingViewport else { return }
+    textContainer.widthTracksTextView = viewport.tracksWidth
+    resizingViewport = nil
+  }
+
+  override var contentOffset: CGPoint {
+    get { super.contentOffset }
+    set { super.contentOffset = resizingViewport?.offset ?? newValue }
+  }
+
+  override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+    super.setContentOffset(resizingViewport?.offset ?? contentOffset, animated: !preservesViewport && animated)
+  }
+
+  override func layoutSubviews() {
+    if let viewport = resizingViewport, textContainer.size.width != viewport.width {
+      textContainer.size.width = viewport.width
+    }
+    super.layoutSubviews()
+    if let viewport = resizingViewport, super.contentOffset != viewport.offset {
+      super.contentOffset = viewport.offset
+    }
+  }
 
   static func makeEditorView() -> LexicalView {
     let theme = Theme()
@@ -625,7 +659,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var dragMode: GrabberDrag = .resize
   private var collapseProgress: CGFloat = 0
   private var collapseDistance: CGFloat = 1
-  private var collapseStartOffset: CGFloat = 0
+  private var collapseStartHeight: CGFloat = 0
+  private var collapseInputHeight: CGFloat?
   private lazy var formatBar = ChatComposerFormatBar(editor: input.editor)
   private var formatHeight: NSLayoutConstraint!
   private let fullScreenDim = UIView()
@@ -723,6 +758,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     super.init(frame: frame)
     composer.backgroundColor = .clear
     input.backgroundColor = .clear
+    input.clipsToBounds = true
     input.font = .dynamic(of: 17)
     input.textColor = .label
     input.textContainerInset = UIEdgeInsets(top: 13, left: 16, bottom: 13, right: 46)
@@ -1346,22 +1382,35 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     case .began:
       guard follows else { return }
       let keyboard = keyboardLayoutGuide.layoutFrame
-      collapseDistance = max(80, keyboard.height - safeAreaInsets.bottom)
-      collapseStartOffset = input.contentOffset.y
+      collapseStartHeight = bounds.height
+      let shrink = inputHeight.constant - 48 + accessoryHeight.constant + grabberHeight.constant
+        + attachmentHeight.constant + attachmentTop.constant - 8
+      collapseDistance = max(80, keyboard.height - safeAreaInsets.bottom) + max(0, shrink)
+      collapseInputHeight = inputHeight.constant
+      input.beginViewportResize()
       grabber.followKeyboard(fromTouchY: pan.location(in: self).y, keyboardTop: keyboard.minY) { translation, velocity in
         Self.grabberRelease(.collapse, progress: 0, translation: translation, velocity: velocity) == .sheet
       }
     case .changed:
       guard follows else { return }
       setCollapseProgress(translation / collapseDistance)
-      layoutIfNeeded()
+      (window ?? self).layoutIfNeeded()
+      grabber.updateKeyboard(shrinkingBy: collapseStartHeight - bounds.height)
     default:
       grabber.releaseKeyboard()
       let release = Self.grabberRelease(.collapse, progress: collapseProgress, translation: translation, velocity: pan.velocity(in: self).y)
-      if release == .close && input.resignFirstResponder() { return }
+      if pan.state == .ended && release == .close {
+        input.endViewportResize()
+        collapseInputHeight = nil
+        if input.resignFirstResponder() { return }
+      }
       guard follows else { return }
       UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
         self.setCollapseProgress(0)
+        (self.window ?? self).layoutIfNeeded()
+        self.input.endViewportResize()
+        self.collapseInputHeight = nil
+        self.updateComposer()
         (self.window ?? self).layoutIfNeeded()
       }
     }
@@ -1555,13 +1604,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let verticalInset = expanded ? 14 + (restingVertical - 14) * collapse : restingVertical
     let topInset = showsGrabber ? 4 + (restingVertical - 4) * collapse : verticalInset
     let leadingInset = expanded ? 20 + (restingLeading - 20) * collapse : restingLeading
-    input.textContainer.maximumNumberOfLines = expanded ? 0 : 1
-    input.textContainer.lineBreakMode = expanded ? .byWordWrapping : .byTruncatingTail
     let trailingInset = expanded ? 20 + (restingTrailing - 20) * collapse : restingTrailing
-    input.textContainerInset = UIEdgeInsets(top: topInset, left: leadingInset, bottom: verticalInset, right: trailingInset)
+    if !input.preservesViewport {
+      input.textContainer.maximumNumberOfLines = expanded ? 0 : 1
+      input.textContainer.lineBreakMode = expanded ? .byWordWrapping : .byTruncatingTail
+      input.textContainerInset = UIEdgeInsets(top: topInset, left: leadingInset, bottom: verticalInset, right: trailingInset)
+    }
     hintLeading.constant = leadingInset + 5
     hintTop.constant = topInset
-    let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
+    let height = collapseInputHeight ?? input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
     let overflows = height > ChatMessageContent.maximumCollapsedHeight
     let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentTop.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + grabberHeight.constant + (expanded ? 8 + 8 * collapse : 16)
     let sheetHeight = min(ChatMessageContent.maximumCollapsedHeight, max(132, height))
@@ -1574,9 +1625,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       dragDistance = max(1, fullScreenInputHeight(chrome: chrome + 44) + 44 - inlineHeight)
       inputHeight.constant = inlineHeight
     }
-    input.isScrollEnabled = expanded && collapse == 0 && (fullProgress > 0 || overflows)
+    if !input.preservesViewport { input.isScrollEnabled = expanded && collapse == 0 && (fullProgress > 0 || overflows) }
     if !expanded { input.contentOffset = .zero }
-    if collapse > 0 { input.contentOffset.y = collapseStartOffset * sheetShare }
     if expanded { surfaceLayout.update(collapse: collapse) }
     updateComposerOptions()
     onHeightChange?(chrome + inputHeight.constant)
@@ -1714,6 +1764,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func textViewDidChange(_ textView: UITextView) { updateComposer() }
   func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
   func textViewDidEndEditing(_ textView: UITextView) {
+    grabber.releaseKeyboard()
+    input.endViewportResize()
+    collapseInputHeight = nil
     setFullScreen(false)
     updateComposer()
     saveDraft()
