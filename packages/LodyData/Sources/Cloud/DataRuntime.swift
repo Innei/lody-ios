@@ -10,6 +10,7 @@ public final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDe
   public var sessionId: String?
   public private(set) var sessionSnapshot: (generation: Int, json: String)?
   private var retainedSessions: [String] = []
+  private var sessionWatchers: [String: Int] = [:]
   public var reservedSessions: [String] = []
   public var userId = ""
   private let localStore: LocalStore
@@ -232,6 +233,16 @@ public final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDe
     if sessionId != id { sessionSnapshot = nil }
     sessionId = id
     dispatch(RuntimeContract.Calls.OpenSession.self, .init(sessionId: id))
+  }
+  public func watchSession(_ id: String) {
+    sessionWatchers[id, default: 0] += 1
+    openSession(id)
+  }
+  // A replaced chat page can deinit after its successor opened the same session.
+  public func unwatchSession(_ id: String) {
+    let remaining = (sessionWatchers[id] ?? 1) - 1
+    sessionWatchers[id] = remaining > 0 ? remaining : nil
+    if remaining <= 0 { closeSession(id) }
   }
   public func closeSession(_ id: String) {
     ContentStore.shared.clear(session: id)

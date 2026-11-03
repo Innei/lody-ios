@@ -54,10 +54,10 @@ public struct SessionFeedService: Sendable {
         let event = SessionRuntimeEvent(note.userInfo ?? [:])
         MainActor.assumeIsolated { receive(event) }
       }
-      DataRuntime.current?.openSession(sessionId)
+      DataRuntime.current?.watchSession(sessionId)
       return {
         NotificationCenter.default.removeObserver(observer)
-        DataRuntime.current?.closeSession(sessionId)
+        DataRuntime.current?.unwatchSession(sessionId)
       }
     },
     reconnect: { DataRuntime.current?.openSession($0) },

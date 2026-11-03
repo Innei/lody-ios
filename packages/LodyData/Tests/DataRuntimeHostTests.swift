@@ -37,6 +37,18 @@ final class DataRuntimeHostTests: XCTestCase {
     XCTAssertEqual(states, ["background"])
   }
 
+  func testReplacedFeedOfTheSameSessionKeepsTheNewWatcherOpen() {
+    let runtime = DataRuntime(localStore: store())
+    DataRuntime.current = runtime
+    defer { DataRuntime.current = nil }
+    let old = SessionFeedService.live.watch("s") { _ in }
+    let replacement = SessionFeedService.live.watch("s") { _ in }
+    old()
+    XCTAssertEqual(runtime.sessionId, "s")
+    replacement()
+    XCTAssertNil(runtime.sessionId)
+  }
+
   func testLocalStoreRoundTrips() throws {
     let local = store()
     try local.write("account", #"{"user":"u"}"#)
