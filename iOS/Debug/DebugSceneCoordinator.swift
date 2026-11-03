@@ -19,7 +19,6 @@ enum DebugSceneCoordinator {
   }
 
   static func open(_ params: [String: String]) {
-    guard LodyUIVerify.enabled || _isDebugAssertConfiguration() else { return }
     guard let scenario = params["verifyCase"] else {
       LodyShell.shared.pushRoot(DebugViewController(), title: "Debug")
       return

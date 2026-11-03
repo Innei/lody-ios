@@ -26,9 +26,7 @@ public final class LodyApplication {
 
   public func start(in window: UIWindow) {
     precondition(observers.isEmpty, "Lody supports one active scene")
-    if LodyUIVerify.enabled || _isDebugAssertConfiguration() {
-      PageFactory.debugSceneFactory = DebugSceneFactory.make
-    }
+    PageFactory.debugSceneFactory = DebugSceneFactory.make
     LodyHosting.current = LodyUIKitHost.shared
     ContentPreviewCoordinator.clearAll()
     if LodyUIVerify.offline { URLProtocol.registerClass(OfflineProbe.self) }

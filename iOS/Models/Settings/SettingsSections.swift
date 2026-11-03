@@ -1,7 +1,7 @@
 import Foundation
 
 enum SettingsSections {
-  static func make(_ state: SettingsState, developer: Bool, now: Double = LodyRelativeTime.now()) -> [LodyListSection] {
+  static func make(_ state: SettingsState, now: Double = LodyRelativeTime.now()) -> [LodyListSection] {
     let account = state.account
     let workspace = account == nil ? nil : state.workspace
     var sections = [
@@ -24,12 +24,7 @@ enum SettingsSections {
       row("about", text("section.about"), subtitle: text("about.subtitle"), image: "info.circle"),
       row("diagnostics", String(localized: "diagnostics.title", bundle: .lody), image: "waveform.path.ecg"),
     ]))
-    if developer {
-      sections.append(section(
-        "developer", header: text("section.developer"), footer: text("developer.footer"),
-        rows: [row("debug-open", "Debug", image: "ladybug")]
-      ))
-    }
+    sections.append(section("developer", header: text("section.developer"), rows: [row("debug-open", "Debug", image: "ladybug")]))
     return sections
   }
 

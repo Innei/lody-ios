@@ -5174,23 +5174,6 @@
         }
       }
     },
-    "settings.developer.footer": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅开发构建显示。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Development builds only."
-          }
-        }
-      }
-    },
     "settings.licenses.title": {
       "extractionState": "manual",
       "localizations": {

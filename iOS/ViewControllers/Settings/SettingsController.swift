@@ -38,12 +38,7 @@ class SettingsController: UIViewController {
 
   func render() {
     state = source.state
-    #if DEBUG
-      let developer = true
-    #else
-      let developer = LodyUIVerify.enabled
-    #endif
-    list.setSections(SettingsSections.make(state, developer: developer))
+    list.setSections(SettingsSections.make(state))
   }
 
   private func open(_ id: String) {
